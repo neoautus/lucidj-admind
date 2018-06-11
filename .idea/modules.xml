@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/admind/admind.iml" filepath="$PROJECT_DIR$/admind/admind.iml" />
       <module fileurl="file://$PROJECT_DIR$/api/api.iml" filepath="$PROJECT_DIR$/api/api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/examples/examples.iml" filepath="$PROJECT_DIR$/examples/examples.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/lucidj-admind.iml" filepath="$PROJECT_DIR$/.idea/lucidj-admind.iml" />
     </modules>
   </component>

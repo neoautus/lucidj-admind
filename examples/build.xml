@@ -14,7 +14,7 @@
    License for the specific language governing permissions and limitations under
    the License.
 -->
-<project name="lucidj-admind" default="build-all">
+<project name="examples" default="build-all">
 
     <import>
         <fileset dir="${basedir}" includes="configure.xml"/>
@@ -23,23 +23,10 @@
 
     <target name="getlibs" depends="configure.getlibs">
 
-        <resolvePath id="admind/logging">
-            <dependency org="org.ops4j.pax.logging" name="pax-logging-api" rev="1.10.1" transitive="false"/>
-        </resolvePath>
-
-        <getDependency group="project-libs"
-            org="neoautus/lucidj-stddef" name="org.lucidj.api.stddef" rev="1.0.1"/>
-
         <path id="project-libs">
-            <fileset dir="${libcache.dir}" includes="project-libs/**/*.jar"/>
+            <fileset dir="${artifacts.dir}" includes="default/**/*.jar"/>
         </path>
 
-    </target>
-
-    <target name="build-examples">
-        <subant buildpath="${basedir}/examples">
-            <property name="deploy.flag" value="${deploy.flag}"/>
-        </subant>
     </target>
 
     <target name="build-all" depends="init">
@@ -47,25 +34,14 @@
         <!-- Default for deploy -->
         <property name="deploy.flag" value="false"/>
 
-        <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.0.0"
-            exports="org.lucidj.api.admind;version=1.0.0"
-            deploy="${deploy.flag}" ipojo="false" outfileProperty="api.jar">
-            <classpath>
-                <path refid="project-libs"/>
-            </classpath>
-        </build.module>
-        <artifact file="${api.jar}"/>
-
-        <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0"
+        <build.module dir="echo" symbolicName="org.lucidj.examples.echo" version="1.0.0"
             deploy="${deploy.flag}" ipojo="false">
             <classpath>
-                <path refid="admind/logging"/>
                 <path refid="project-libs"/>
-                <pathelement path="${api.jar}"/>
+                <path refid="default/osgi"/>
+                <path refid="default/slf4j-api"/>
             </classpath>
         </build.module>
-
-        <antcall target="build-examples"/>
 
     </target>
 

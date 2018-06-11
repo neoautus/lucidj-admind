@@ -14,16 +14,38 @@
  * the License.
  */
 
-package org.lucidj.api.admind;
+package org.lucidj.examples.echo;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 
-public interface TaskProvider
+public class EchoTask implements Runnable
 {
-    String LOCATOR_FILTER = TaskProvider.class.getSimpleName() + ".locatorFilter";
+    private InputStream in;
+    private OutputStream out;
+    private OutputStream err;
 
-    Runnable createTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options);
+    public EchoTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options)
+    {
+        this.in = in;
+        this.out = out;
+        this.err = err;
+    }
+
+    @Override
+    public void run()
+    {
+        try
+        {
+            for (int ch; (ch = in.read ()) != -1; out.write (Character.toUpperCase (ch)));
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace (new PrintWriter (err));
+        }
+    }
 }
 
 // EOF

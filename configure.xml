@@ -14,7 +14,10 @@
    License for the specific language governing permissions and limitations under
    the License.
 -->
-<project name="configure" xmlns:ivy="antlib:org.apache.ivy.ant">
+<project name="configure"
+     xmlns:ivy="antlib:org.apache.ivy.ant"
+     xmlns:if="ant:if"
+     xmlns:unless="ant:unless">
 
     <fail>Error:
 
@@ -25,6 +28,7 @@
         </condition>
     </fail>
 
+    <property environment="env"/>
     <property name="docs.dir" value="${basedir}/docs"/>
     <property name="dist.dir" value="${basedir}/dist"/>
     <property name="build.dir" value="${basedir}/build"/>
@@ -276,14 +280,27 @@
     <macrodef name="deploy">
         <attribute name="file"/>
         <sequential>
-            <if><isset property="stage.available.flag"/>
+
+            <!-- 1) Top priority: env var DEPLOY_DIR set -->
+            <condition property="deploy.dir" value="${env.DEPLOY_DIR}">
+                <isset property="env.DEPLOY_DIR"/>
+            </condition>
+
+            <!-- 2) Then: explicit deploy.properties set -->
+            <property file="${stage.dir}/deploy.properties" if:set="stage.available.flag"/>
+
+            <!-- 3) Default: Only stage available -->
+            <condition property="deploy.dir" value="${stage.dir}/deploy">
+                <isset property="stage.available.flag"/>
+            </condition>
+
+            <if><isset property="deploy.dir"/>
                 <then>
-                    <property file="${stage.dir}/deploy.properties"/>
-                    <property name="deploy.dir" value="${stage.dir}/deploy"/>
-                    <copy file="@{file}" todir="${deploy.dir}"
-                        overwrite="true" taskname="deploy"/>
+                    <copy file="@{file}" todir="${deploy.dir}" overwrite="true" taskname="deploy"/>
                 </then>
                 <else>
+
+                    <!-- 4) If none of above apply, try to deploy to an active server -->
                     <if><http url="http://localhost:8181/~localsvc/deploy"/>
                         <then>
                             <echo taskname="deploy" message="Remote deploy: @{file}"/>
@@ -467,10 +484,12 @@
             </if>
 
             <!-- Append bundle.inc to bundle.bnd, if it exists -->
-            <if><available file="@{src}/../bundle.inc"/>
+            <local name="bnd.inc.file"/>
+            <property name="bnd.inc.file" value="${basedir}/@{src}/../bundle.inc"/>
+            <if><available file="${bnd.inc.file}"/>
                 <then>
-                    <concat destfile="${bnd.file}" append="true">
-                        <file name="@{src}/../bundle.inc"/>
+                    <concat destfile="${bnd.file}" append="true" fixlastline="true">
+                        <file name="${bnd.inc.file}"/>
                     </concat>
                 </then>
             </if>
