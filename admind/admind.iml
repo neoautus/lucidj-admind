@@ -18,5 +18,6 @@
       </library>
     </orderEntry>
     <orderEntry type="library" scope="PROVIDED" name="OSGi r5" level="project" />
+    <orderEntry type="library" scope="PROVIDED" name="Default Artifacts" level="project" />
   </component>
 </module>

@@ -48,6 +48,7 @@
                 <path refid="project-libs"/>
             </classpath>
         </build.module>
+        <artifact file="${api.jar}"/>
 
         <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0" deploy="${deploy.flag}">
             <classpath>

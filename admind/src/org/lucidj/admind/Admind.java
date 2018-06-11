@@ -16,7 +16,10 @@
 
 package org.lucidj.admind;
 
+import org.lucidj.api.admind.TaskProvider;
 import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceReference;
+import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +33,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class Admind
+public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
 {
     private final static Logger log = LoggerFactory.getLogger (Admind.class);
 
@@ -49,6 +52,7 @@ public class Admind
 
     public Admind (BundleContext context)
     {
+        super (context, TaskProvider.class.getName (), null);
         this.context = context;
 
         tmp_dir = System.getProperty ("java.io.tmpdir");
@@ -63,6 +67,24 @@ public class Admind
         {
             tmp_dir = tmp_dir + File.separatorChar;
         }
+    }
+
+    @SuppressWarnings ("unchecked")
+    public TaskProvider addingService (ServiceReference<TaskProvider> reference)
+    {
+        TaskProvider service = context.getService (reference);
+
+        log.info ("AdminD task provider started: {}", service);
+
+        return (service);
+    }
+
+    @Override
+    public void removedService (ServiceReference<TaskProvider> reference, TaskProvider service)
+    {
+        log.info ("AdminD task provider stopped: {}", service);
+
+        super.removedService (reference, service);
     }
 
     private boolean is_valid_dir (String dir)
