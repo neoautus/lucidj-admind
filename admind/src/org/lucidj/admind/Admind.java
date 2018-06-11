@@ -33,7 +33,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
+public class Admind
 {
     private final static Logger log = LoggerFactory.getLogger (Admind.class);
 
@@ -49,11 +49,12 @@ public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
     private String jvm_id;
 
     private BundleContext context;
+    private ServiceTracker<TaskProvider, TaskProvider> service_tracker;
 
     public Admind (BundleContext context)
     {
-        super (context, TaskProvider.class.getName (), null);
         this.context = context;
+        service_tracker = new TaskProviderTracker(context);
 
         tmp_dir = System.getProperty ("java.io.tmpdir");
 
@@ -67,24 +68,6 @@ public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
         {
             tmp_dir = tmp_dir + File.separatorChar;
         }
-    }
-
-    @SuppressWarnings ("unchecked")
-    public TaskProvider addingService (ServiceReference<TaskProvider> reference)
-    {
-        TaskProvider service = context.getService (reference);
-
-        log.info ("AdminD task provider started: {}", service);
-
-        return (service);
-    }
-
-    @Override
-    public void removedService (ServiceReference<TaskProvider> reference, TaskProvider service)
-    {
-        log.info ("AdminD task provider stopped: {}", service);
-
-        super.removedService (reference, service);
     }
 
     private boolean is_valid_dir (String dir)
@@ -247,6 +230,7 @@ public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
 
     public boolean start ()
     {
+        service_tracker.open ();
         admind_group = new ThreadGroup ("jvmctl");
         admind_main_thread = new Thread(admind_group, new Runnable()
         {
@@ -302,11 +286,46 @@ public class Admind extends ServiceTracker<TaskProvider, TaskProvider>
         {
             // Stop things, wait at most 10 secs for clean stop
             watch_service.close ();
+            service_tracker.close ();
             cleanup_admind_jvm_dir ();
             admind_main_thread.interrupt ();
             admind_main_thread.join (10000);
         }
         catch (IOException | InterruptedException ignore) {};
+    }
+
+    class TaskProviderTracker extends ServiceTracker<TaskProvider, TaskProvider>
+    {
+        public TaskProviderTracker (BundleContext context)
+        {
+            super (context, TaskProvider.class.getName (), null);
+        }
+
+        @Override // ServiceTracker
+        public TaskProvider addingService (ServiceReference<TaskProvider> reference)
+        {
+            TaskProvider service = context.getService (reference);
+            String locator = (String)reference.getProperty (TaskProvider.LOCATOR_FILTER);
+
+            if (locator != null)
+            {
+                log.info ("Registering task provider: {} ({})", locator, service);
+            }
+            else
+            {
+                log.error ("Locator missing on task provider {} ", service);
+            }
+            return (service);
+        }
+
+        @Override // ServiceTracker
+        public void removedService (ServiceReference<TaskProvider> reference, TaskProvider service)
+        {
+            String locator = (String)reference.getProperty (TaskProvider.LOCATOR_FILTER);
+            log.info ("Unregistering task provider: {} ({})", locator, service);
+
+            super.removedService (reference, service);
+        }
     }
 }
 
