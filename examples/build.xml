@@ -23,8 +23,8 @@
 
     <target name="getlibs" depends="configure.getlibs">
 
-        <path id="project-libs">
-            <fileset dir="${artifacts.dir}" includes="default/**/*.jar"/>
+        <path id="project-api">
+            <fileset dir="${artifacts.dir}" includes="api/*.jar"/>
         </path>
 
     </target>
@@ -37,7 +37,7 @@
         <build.module dir="echo" symbolicName="org.lucidj.examples.echo" version="1.0.0"
             deploy="${deploy.flag}" ipojo="false">
             <classpath>
-                <path refid="project-libs"/>
+                <path refid="project-api"/>
                 <path refid="default/osgi"/>
                 <path refid="default/slf4j-api"/>
             </classpath>

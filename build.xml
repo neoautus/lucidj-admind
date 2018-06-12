@@ -34,37 +34,47 @@
             <fileset dir="${libcache.dir}" includes="project-libs/**/*.jar"/>
         </path>
 
+        <path id="project-api">
+            <fileset dir="${artifacts.dir}" includes="api/*.jar"/>
+        </path>
+
     </target>
 
-    <target name="build-examples">
+    <target name="build-api" depends="init">
+        <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.0.0"
+                      exports="org.lucidj.api.admind;version=1.0.0"
+                      deploy="${deploy.flag}" ipojo="false" outfileProperty="api.jar">
+            <classpath>
+                <path refid="project-libs"/>
+            </classpath>
+        </build.module>
+        <artifact file="${api.jar}" group="api"/>
+    </target>
+
+    <target name="build-admind" depends="init">
+        <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0"
+                      deploy="${deploy.flag}" ipojo="false">
+            <classpath>
+                <path refid="admind/logging"/>
+                <path refid="project-libs"/>
+                <path refid="project-api"/>
+            </classpath>
+        </build.module>
+    </target>
+
+    <target name="build-examples" depends="init">
         <subant buildpath="${basedir}/examples">
             <property name="deploy.flag" value="${deploy.flag}"/>
         </subant>
     </target>
 
-    <target name="build-all" depends="init">
+    <target name="build-all" >
 
         <!-- Default for deploy -->
         <property name="deploy.flag" value="false"/>
 
-        <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.0.0"
-            exports="org.lucidj.api.admind;version=1.0.0"
-            deploy="${deploy.flag}" ipojo="false" outfileProperty="api.jar">
-            <classpath>
-                <path refid="project-libs"/>
-            </classpath>
-        </build.module>
-        <artifact file="${api.jar}"/>
-
-        <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0"
-            deploy="${deploy.flag}" ipojo="false">
-            <classpath>
-                <path refid="admind/logging"/>
-                <path refid="project-libs"/>
-                <pathelement path="${api.jar}"/>
-            </classpath>
-        </build.module>
-
+        <antcall target="build-api"/>
+        <antcall target="build-admind"/>
         <antcall target="build-examples"/>
 
     </target>
