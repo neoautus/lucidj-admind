@@ -17,115 +17,52 @@
 package org.lucidj.admind;
 
 import org.lucidj.api.admind.TaskProvider;
+import org.lucidj.ext.admind.AdmindUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
+import java.io.*;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class Admind
 {
     private final static Logger log = LoggerFactory.getLogger (Admind.class);
 
-    private final static String BASE_DIRECTORY = "jvm_admind_";
+    private String admind_dir;
+    private boolean cleanup_admind_dir;
 
-    private static String admind_dir;
     private ThreadGroup admind_group;
     private Thread admind_main_thread;
-
     private WatchService watch_service;
-
-    private String tmp_dir;
-    private String jvm_id;
 
     private BundleContext context;
     private ServiceTracker<TaskProvider, TaskProvider> service_tracker;
+    private Map<String, TaskProvider> available_tasks = new ConcurrentHashMap<> ();
 
     public Admind (BundleContext context)
     {
         this.context = context;
-        service_tracker = new TaskProviderTracker(context);
-
-        tmp_dir = System.getProperty ("java.io.tmpdir");
-
-        // Solaris odd tmp_dir?
-        if (tmp_dir == null || "/var/tmp/".equals (tmp_dir))
-        {
-            tmp_dir = "/tmp/";
-        }
-
-        if (tmp_dir.charAt (tmp_dir.length () - 1) != File.separatorChar)
-        {
-            tmp_dir = tmp_dir + File.separatorChar;
-        }
+        service_tracker = new TaskProviderTracker (context);
     }
 
-    private boolean is_valid_dir (String dir)
+    private void shutdown_watch_service ()
     {
-        File dir_file = new File (dir);
-
-        return (dir_file.isDirectory ()
-                && dir_file.canRead ()
-                && dir_file.canWrite ()
-                && dir_file.canExecute ());
-    }
-
-    private boolean mksane (String dir)
-    {
-        File basedir = new File (dir);
-
-        if (!basedir.exists ())
+        if (watch_service != null)
         {
-            if (!basedir.mkdir ())
+            try
             {
-                return (false);
+                watch_service.close ();
             }
+            catch (IOException ignore) {};
+
+            watch_service = null;
         }
-
-        // TODO: HANDLE PERMISSIONS ON WINDOZE TOO
-        Set<PosixFilePermission> perms = new HashSet<> ();
-        perms.add (PosixFilePermission.OWNER_READ);
-        perms.add (PosixFilePermission.OWNER_WRITE);
-        perms.add (PosixFilePermission.OWNER_EXECUTE);
-
-        try
-        {
-            Files.setPosixFilePermissions (basedir.toPath (), perms);
-        }
-        catch (IOException e)
-        {
-            return (false);
-        }
-
-        // We have a sane directory (u+rwx,go-rwx)
-        return (true);
-    }
-
-    private boolean init_jvmctl_dir ()
-    {
-        String basedir = tmp_dir + BASE_DIRECTORY + System.getProperty ("user.name");
-
-        if (is_valid_dir (basedir) || mksane (basedir))
-        {
-            jvm_id = ManagementFactory.getRuntimeMXBean ().getName ();
-            admind_dir = basedir + File.separator + jvm_id.replaceAll ("\\p{P}", "_");
-
-            if (mksane (admind_dir))
-            {
-                return (true);
-            }
-        }
-        return (false);
     }
 
     private boolean init_watch_service ()
@@ -144,34 +81,66 @@ public class Admind
         }
         catch (IOException e)
         {
+            shutdown_watch_service ();
             log.warn ("Exception initializing WatchService: {}", e.toString());
             return (false);
         }
     }
 
-    public void watch_jvmctl_dir ()
+    private void assign_task (File req_file)
+    {
+        log.info ("PROCESS File path: {} size={}", req_file, req_file.length());
+
+        String filename = req_file.getName ().substring (0, req_file.getName ().lastIndexOf ('.'));
+        //int args_pos = filename.indexOf ("--");
+
+        if (available_tasks.containsKey(filename))
+        {
+            TaskProvider provider = available_tasks.get (filename);
+
+            try
+            {
+                // TODO: SET PROPER PERMISSIONS ON ALL THESE FILES
+                File out_file = new File (admind_dir, filename + ".out");
+                File err_file = new File (admind_dir, filename + ".err");
+                InputStream in = new FileInputStream (req_file);
+                OutputStream out = new FileOutputStream (out_file);
+                OutputStream err = new FileOutputStream (err_file);
+                Runnable task = provider.createTask (in, out, err, filename);
+                Thread new_task = new Thread (admind_group, task);
+                new_task.setDaemon (true);
+                new_task.start ();
+            }
+            catch (FileNotFoundException e)
+            {
+                log.error ("Exception creating task {}: ", filename, e);
+            }
+        }
+    }
+
+    public void watch_admind_dir ()
     {
         log.info ("AdminD started");
 
         while (!admind_main_thread.isInterrupted ())
         {
-//            if (!is_valid_dir (admind_dir))
-//            {
-//                try
-//                {
-//                    watch_service.close();
-//                }
-//                catch (IOException e)
-//                {
-//                    log.error ("Exception closing {}", admind_dir, e);
-//                }
-//            }
-
-            if (admind_dir == null)
+            if (AdmindUtil.getAdmindDir () == null)
             {
-                if (!init_jvmctl_dir ())
+                if (admind_dir != null)
                 {
-                    log.warn ("JVM control directory not available: {}", admind_dir);
+                    log.warn ("Directory {} was deleted", admind_dir);
+                }
+                shutdown_watch_service ();
+                admind_dir = null;
+
+                try
+                {
+                    admind_dir = AdmindUtil.setupAdmindDir ();
+                    log.info ("Directory {} was recreated", admind_dir);
+                }
+                catch (IOException e)
+                {
+                    log.warn ("Exception getting AdminD directory: {}", e.toString (), e);
                 }
             }
 
@@ -199,7 +168,24 @@ public class Admind
                     for (WatchEvent<?> event: watch_key.pollEvents ())
                     {
                         log.info ("Event: kind={} context={}", event.kind (), event.context ());
+                        log.info ("type of context: {}", event.context ().getClass());
 
+                        if (event.context () instanceof Path)
+                        {
+                            File req_file = new File (admind_dir, event.context ().toString ());
+
+                            if (!req_file.getName ().endsWith (".run") || req_file.length () == 0)
+                            {
+                                // We ignore empty files
+                                continue;
+                            }
+
+                            if (event.kind ().equals (StandardWatchEventKinds.ENTRY_CREATE)
+                                || event.kind ().equals (StandardWatchEventKinds.ENTRY_MODIFY))
+                            {
+                                assign_task (req_file);
+                            }
+                        }
                     }
                     watch_key.reset ();
                 }
@@ -230,49 +216,35 @@ public class Admind
 
     public boolean start ()
     {
+        try
+        {
+            // Is there an admind dir ready to use?
+            if ((admind_dir = AdmindUtil.getAdmindDir ()) == null)
+            {
+                // No, we need to create it and delete later
+                cleanup_admind_dir = true;
+                admind_dir = AdmindUtil.setupAdmindDir ();
+                log.info ("Directory {} was created", admind_dir);
+            }
+        }
+        catch (IOException e)
+        {
+            // We don't abort the start so we can retry later
+            log.warn ("Exception starting AdminD: {}", e.toString(), e);
+        }
+
         service_tracker.open ();
-        admind_group = new ThreadGroup ("jvmctl");
-        admind_main_thread = new Thread(admind_group, new Runnable()
+        admind_group = new ThreadGroup (this.getClass ().getSimpleName ());
+        admind_main_thread = new Thread (admind_group, new Runnable()
         {
             @Override
             public void run()
             {
-                watch_jvmctl_dir ();
+                watch_admind_dir ();
             }
-        }, "polling");
-        admind_main_thread.setName (this.getClass ().getSimpleName ());
+        }, "Polling");
         admind_main_thread.start ();
         return (true);
-    }
-
-    private void cleanup_admind_jvm_dir ()
-    {
-        try
-        {
-            log.info ("Removing " + admind_dir + " ...");
-
-            Files.walkFileTree (Paths.get (admind_dir), new SimpleFileVisitor<Path> ()
-            {
-                @Override
-                public FileVisitResult postVisitDirectory (Path dir, IOException exc)
-                        throws IOException
-                {
-                    Files.delete(dir);
-                    return (FileVisitResult.CONTINUE);
-                }
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                        throws IOException
-                {
-                    Files.delete (file);
-                    return (FileVisitResult.CONTINUE);
-                }
-            });
-
-            log.info ("Directory " + admind_dir + " removed.");
-        }
-        catch (IOException ignore) {};
     }
 
     public void stop ()
@@ -285,11 +257,18 @@ public class Admind
         try
         {
             // Stop things, wait at most 10 secs for clean stop
-            watch_service.close ();
+            shutdown_watch_service ();
             service_tracker.close ();
-            cleanup_admind_jvm_dir ();
+
+            if (cleanup_admind_dir)
+            {
+                // We only remove the dir if we created it
+                AdmindUtil.cleanupAdmindDir ();
+            }
+
             admind_main_thread.interrupt ();
             admind_main_thread.join (10000);
+            // TODO: DESTROY admind_group
         }
         catch (IOException | InterruptedException ignore) {};
     }
@@ -310,6 +289,7 @@ public class Admind
             if (locator != null)
             {
                 log.info ("Registering task provider: {} ({})", locator, service);
+                available_tasks.put (locator, service);
             }
             else
             {
@@ -323,7 +303,7 @@ public class Admind
         {
             String locator = (String)reference.getProperty (TaskProvider.LOCATOR_FILTER);
             log.info ("Unregistering task provider: {} ({})", locator, service);
-
+            available_tasks.remove (locator);
             super.removedService (reference, service);
         }
     }

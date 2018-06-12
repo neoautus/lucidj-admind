@@ -21,6 +21,9 @@
         <fileset dir=".." includes="configure.xml"/>
     </import>
 
+    <property name="adminutil.jar.name" value="lucidj-adminutil"/>
+    <property name="adminutil.jar.type" value="ext"/>
+
     <target name="getlibs" depends="configure.getlibs">
 
         <resolvePath id="admind/logging">
@@ -40,6 +43,16 @@
 
     </target>
 
+    <target name="build-ext" depends="init">
+        <!-- The adminutil.jar extension library is kept as classic jar
+             on purpose, because it should be embedded into another bundles
+             which need its classes.
+         -->
+        <build.classic.jar src="ext" name="${adminutil.jar.name}" version="1.0.0"
+            outfileProperty="ext.jar"/>
+        <artifact file="${ext.jar}" group="${adminutil.jar.type}"/>
+    </target>
+
     <target name="build-api" depends="init">
         <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.0.0"
                       exports="org.lucidj.api.admind;version=1.0.0"
@@ -52,8 +65,23 @@
     </target>
 
     <target name="build-admind" depends="init">
+
+        <!-- We extract the contents of adminutil.jar extension library to a directory,
+             so we can add it later into the bundle compilation and the bundle jar by
+             referring the fileset refid. This embeds the classes we need into the bundle
+             and avoids creating import clauses, as would happen if the classes were not
+             available alongside the other classes from the bundle.
+         -->
+        <property name="temp.dir" value="${build.dir}/temp/admind"/>
+        <delete dir="${temp.dir}"/>
+        <unzip dest="${temp.dir}">
+            <fileset dir="${artifacts.dir}" includes="${adminutil.jar.type}/${adminutil.jar.name}-*.jar"/>
+        </unzip>
+        <fileset id="admindutil.classes" dir="${temp.dir}" includes="**/*.class"/>
+
+        <!-- Build the bundle employing 'embeddedClasses' option -->
         <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0"
-                      deploy="${deploy.flag}" ipojo="false">
+                      deploy="${deploy.flag}" embeddedClasses="admindutil.classes" ipojo="false">
             <classpath>
                 <path refid="admind/logging"/>
                 <path refid="project-libs"/>
@@ -74,6 +102,7 @@
         <property name="deploy.flag" value="false"/>
 
         <antcall target="build-api"/>
+        <antcall target="build-ext"/>
         <antcall target="build-admind"/>
         <antcall target="build-examples"/>
 
