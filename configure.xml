@@ -364,6 +364,7 @@
         <attribute name="ipojo" default="true"/>
         <attribute name="outfileProperty" default="bundle.temp.jar"/>
         <attribute name="defaultPathId" default="default.path"/>
+        <attribute name="embeddedClasses" default="emptyFileset"/>
         <element name="classpaths" optional="yes"/>
         <element name="privateClasspath" optional="yes"/>
         <sequential>
@@ -385,8 +386,11 @@
             <!-- Embed private libraries/classpath -->
             <!-- ================================= -->
 
+            <!-- We use to default embeddedClasses=emptyFileset -->
+            <fileset id="emptyFileset" dir="@{src}" includes="---*---"/>
+
             <copy todir="${module.build.dir}/private" overwrite="true" flatten="true">
-                <fileset dir="@{src}" includes="-*"/><!-- just satisfy copy if no privateClasspath -->
+                <fileset refid="emptyFileset"/><!-- just satisfy copy if no privateClasspath -->
                 <privateClasspath/>
             </copy>
 
@@ -402,6 +406,11 @@
             <!-- ================= -->
             <!-- Javac as usual... -->
             <!-- ================= -->
+
+            <!-- Embed foreign classes if needed -->
+            <copy todir="${module.classes.dir}">
+                <fileset refid="@{embeddedClasses}"/>
+            </copy>
 
             <path id="build.bundle.path">
                 <pathelement path="${module.classes.dir}"/>
@@ -537,6 +546,7 @@
         <attribute name="deploy" default="false"/>
         <attribute name="exports" default="void"/><!-- TODO: Make an 'auto' which auto-exports all -->
         <attribute name="outfileProperty" default="module.temp.jar"/>
+        <attribute name="embeddedClasses" default="emptyFileset"/>
         <element name="classpath" optional="yes"/>
         <sequential>
             <local name="bnd.file"/>
@@ -546,7 +556,8 @@
 
             <local name="module.temp.jar"/>
             <build.bundle bnd="${bnd.file}" src="@{dir}/src" exports="@{exports}" version="@{version}"
-                symbolicName="@{symbolicName}" outfileProperty="@{outfileProperty}" ipojo="@{ipojo}">
+                symbolicName="@{symbolicName}" outfileProperty="@{outfileProperty}" ipojo="@{ipojo}"
+                embeddedClasses="@{embeddedClasses}">
                 <classpaths>
                     <classpath/>
                 </classpaths>
@@ -561,6 +572,37 @@
                     <deploy file="${@{outfileProperty}}"/>
                 </then>
             </if>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="build.classic.jar">
+        <attribute name="name"/>
+        <attribute name="version"/>
+        <attribute name="src"/>
+        <attribute name="outfileProperty" default="classic.temp.jar"/>
+        <element name="classpaths" optional="yes"/>
+        <sequential>
+            <local name="classes.dir"/>
+            <property name="classes.dir" value="${build.dir}/@{name}-@{version}"/>
+            <delete dir="${classes.dir}" quiet="true"/>
+            <mkdir dir="${classes.dir}"/>
+            <javac srcdir="@{src}" destdir="${classes.dir}"
+                   debug="${javac.debug}" debuglevel="${javac.debuglevel}" deprecation="${javac.deprecation}"
+                   source="${javac.source}" target="${javac.target}" bootclasspath="${javac.bootclasspath}"
+                   includeantruntime="false">
+                <compilerarg line="${javac.optional}"/>
+                <classpaths/>
+            </javac>
+
+            <local name="dist.jar"/>
+            <property name="dist.jar" value="${dist.dir}/@{name}/@{name}-@{version}.jar"/>
+            <local name="classic.temp.jar"/>
+            <property name="@{outfileProperty}" value="${dist.jar}"/>
+            <delete file="${dist.jar}"/>
+            <jar destfile="${dist.jar}">
+                <!-- manifest? -->
+                <fileset dir="${classes.dir}" includes="**/*"/>
+            </jar>
         </sequential>
     </macrodef>
 
