@@ -27,7 +27,7 @@ public class EchoTask implements Runnable
     private OutputStream out;
     private OutputStream err;
 
-    public EchoTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options)
+    public EchoTask (InputStream in, OutputStream out, OutputStream err, String name, String[] options)
     {
         this.in = in;
         this.out = out;

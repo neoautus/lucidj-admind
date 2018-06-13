@@ -89,32 +89,32 @@ public class Admind
 
     private void assign_task (File req_file)
     {
-        log.info ("PROCESS File path: {} size={}", req_file, req_file.length());
+        log.info ("assign_task: {} size={}", req_file, req_file.length());
 
-        String filename = req_file.getName ().substring (0, req_file.getName ().lastIndexOf ('.'));
-        //int args_pos = filename.indexOf ("--");
+        String identifier = req_file.getName ().substring (0, req_file.getName ().lastIndexOf ('.'));
+        String name = TaskThread.getTaskName (identifier);
 
-        if (available_tasks.containsKey(filename))
+        if (name == null)
         {
-            TaskProvider provider = available_tasks.get (filename);
+            File err_file = new File (admind_dir, identifier + ".err");
 
-            try
+            try (PrintWriter pw = new PrintWriter (err_file))
             {
-                // TODO: SET PROPER PERMISSIONS ON ALL THESE FILES
-                File out_file = new File (admind_dir, filename + ".out");
-                File err_file = new File (admind_dir, filename + ".err");
-                InputStream in = new FileInputStream (req_file);
-                OutputStream out = new FileOutputStream (out_file);
-                OutputStream err = new FileOutputStream (err_file);
-                Runnable task = provider.createTask (in, out, err, filename);
-                Thread new_task = new Thread (admind_group, task);
-                new_task.setDaemon (true);
-                new_task.start ();
+                pw.println ("This task file requires at least an unique task id after --");
+                pw.println ("Example: " + identifier + "--12345");
             }
-            catch (FileNotFoundException e)
+            catch (IOException e)
             {
-                log.error ("Exception creating task {}: ", filename, e);
+                log.warn ("Exception creating err file {}: {}", err_file.getName (), e.toString ());
             }
+            return;
+        }
+
+        if (available_tasks.containsKey (name))
+        {
+            TaskProvider provider = available_tasks.get (name);
+            Thread task_thread = new TaskThread (admind_group, provider, req_file);
+            task_thread.start ();
         }
     }
 
@@ -207,10 +207,9 @@ public class Admind
                     // This bundle has been uninstalled, exiting loop
                     break;
                 }
-                log.error ("AdminD exception: " + t.toString ());
+                log.warn ("AdminD exception: " + t.toString ());
             }
         }
-
         log.info ("AdminD stopped");
     }
 
@@ -284,12 +283,12 @@ public class Admind
         public TaskProvider addingService (ServiceReference<TaskProvider> reference)
         {
             TaskProvider service = context.getService (reference);
-            String locator = (String)reference.getProperty (TaskProvider.LOCATOR_FILTER);
+            String name = (String)reference.getProperty (TaskProvider.NAME_FILTER);
 
-            if (locator != null)
+            if (name != null)
             {
-                log.info ("Registering task provider: {} ({})", locator, service);
-                available_tasks.put (locator, service);
+                log.info ("Registering task provider: {} ({})", name, service);
+                available_tasks.put (name, service);
             }
             else
             {
@@ -301,9 +300,9 @@ public class Admind
         @Override // ServiceTracker
         public void removedService (ServiceReference<TaskProvider> reference, TaskProvider service)
         {
-            String locator = (String)reference.getProperty (TaskProvider.LOCATOR_FILTER);
-            log.info ("Unregistering task provider: {} ({})", locator, service);
-            available_tasks.remove (locator);
+            String name = (String)reference.getProperty (TaskProvider.NAME_FILTER);
+            log.info ("Unregistering task provider: {} ({})", name, service);
+            available_tasks.remove (name);
             super.removedService (reference, service);
         }
     }

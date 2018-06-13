@@ -46,7 +46,7 @@ public class EchoProvider implements TaskProvider, BundleActivator
         throws Exception
     {
         Dictionary<String, Object> props = new Hashtable<>();
-        props.put (TaskProvider.LOCATOR_FILTER, "echo");
+        props.put (TaskProvider.NAME_FILTER, "echo");
         provider_registration = bundleContext.registerService (TaskProvider.class, this, props);
         log.info ("EchoProvider started ({})", provider_registration);
     }

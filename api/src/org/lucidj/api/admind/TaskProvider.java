@@ -21,9 +21,9 @@ import java.io.OutputStream;
 
 public interface TaskProvider
 {
-    String LOCATOR_FILTER = TaskProvider.class.getSimpleName() + ".locatorFilter";
+    String NAME_FILTER = TaskProvider.class.getSimpleName() + ".nameFilter";
 
-    Runnable createTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options);
+    Runnable createTask (InputStream in, OutputStream out, OutputStream err, String name, String[] options);
 }
 
 // EOF
