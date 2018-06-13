@@ -26,20 +26,66 @@ public class TaskThread extends Thread
 {
     private final static Logger log = LoggerFactory.getLogger (TaskThread.class);
 
-    private TaskProvider provider;
+    private String identifier;
     private Runnable task;
-    private File in_file;
     private InputStream in;
     private OutputStream out;
     private TriggeredOutputStream err;
 
-    public TaskThread (ThreadGroup group, TaskProvider provider, File request)
+    private TaskThread (String identifier, ThreadGroup group, Runnable task,
+                        InputStream in, OutputStream out, TriggeredOutputStream err)
     {
-        super (group, request.getName());
-        this.provider = provider;
-        this.in_file = request;
-        log.info ("New TaskThread (group={} provider={} request={} (size={})",
-            group, provider, request, request.length());
+        super (group, identifier);
+        this.identifier = identifier;
+        this.task = task;
+        this.in = in;
+        this.out = out;
+        this.err = err;
+
+        log.debug ("New TaskThread (identifier={} group={} task={} in={} out={} err={}",
+            identifier, group, task, in, out, err);
+    }
+
+    public static TaskThread newInstance (ThreadGroup group, TaskProvider provider, File request)
+    {
+        String identifier = request.getName ().substring (0, request.getName ().lastIndexOf ('.'));
+        String basedir = request.getParent ();
+        File response = new File (basedir, identifier + ".out");
+        File status = new File (basedir, identifier + ".err");
+        InputStream task_in = null;
+        OutputStream task_out = null;
+        TriggeredOutputStream task_err = null;
+
+        log.debug ("TaskThread.newInstance: request={} (size={})", request.toString(), request.length());
+
+        try
+        {
+            // TODO: SET PROPER PERMISSIONS ON ALL THESE FILES
+            if (!response.createNewFile ())
+            {
+                // The task was already created
+                return (null);
+            }
+
+            task_in = new FileInputStream (request);
+            task_out = new FileOutputStream (response);
+            task_err = new TriggeredOutputStream (status);
+        }
+        catch (IOException e)
+        {
+            log.warn ("Exception creating new task {}: {}", identifier, e.toString ());
+            closeQuietly (task_in);
+            closeQuietly (task_out);
+            closeQuietly (task_err);
+            return (null);
+        }
+
+        // We have all set up to create the serving task
+        Runnable task = provider.createTask (task_in, task_out, task_err,
+            getTaskName (identifier), getTaskOptions (identifier));
+        TaskThread new_task = new TaskThread (identifier, group, task, task_in, task_out, task_err);
+        new_task.setDaemon (true);
+        return (new_task);
     }
 
     public static boolean validTaskIdentifier (String identifier)
@@ -70,35 +116,7 @@ public class TaskThread extends Thread
         return (new String [0]);
     }
 
-    @Override
-    public void start ()
-    {
-        String basedir = in_file.getParent ();
-        String identifier = in_file.getName ().substring (0, in_file.getName ().lastIndexOf ('.'));
-        String name = getTaskName (identifier);
-        String[] options = getTaskOptions (identifier);
-
-        log.info ("basedir={} filename={}", basedir, identifier);
-
-        try
-        {
-            // TODO: SET PROPER PERMISSIONS ON ALL THESE FILES
-            File out_file = new File (basedir, identifier + ".out");
-            File err_file = new File (basedir, identifier + ".err");
-            in = new FileInputStream (in_file);
-            out = new FileOutputStream (out_file);
-            err = new TriggeredOutputStream (err_file);
-            task = provider.createTask (in, out, err, name, options);
-            setDaemon (true);
-            super.start ();
-        }
-        catch (FileNotFoundException e)
-        {
-            log.error ("Exception creating task {}: ", identifier, e);
-        }
-    }
-
-    @Override
+    @Override // Thread
     public void run ()
     {
         try
@@ -107,7 +125,8 @@ public class TaskThread extends Thread
         }
         catch (Throwable t)
         {
-
+            // TODO: SHOULD WE RECORD THIS INTO err_file?
+            log.warn ("Task {} throwed {}", identifier, t.toString (), t);
         }
         finally
         {
@@ -125,13 +144,25 @@ public class TaskThread extends Thread
 
             try
             {
+                // The error file presence indicates thread finished.
+                // An empty error file indicates success.
+                err.touch ();
                 err.close ();
             }
             catch (Exception ignore) {};
         }
     }
 
-    class TriggeredOutputStream extends OutputStream
+    private static void closeQuietly (Closeable c)
+    {
+        if (c != null) try
+        {
+            c.close ();
+        }
+        catch (IOException e) {};
+    }
+
+    static class TriggeredOutputStream extends OutputStream
     {
         private OutputStream shadow_os;     // The real OutputStream is only created if data is written
         private File file;
@@ -164,13 +195,20 @@ public class TaskThread extends Thread
         }
 
         private OutputStream getShadow ()
-                throws IOException
+            throws IOException
         {
             if (shadow_os == null)
             {
                 shadow_os = new FileOutputStream (file);
             }
             return (shadow_os);
+        }
+
+        public void touch ()
+            throws IOException
+        {
+            // Ensure the file is created
+            getShadow ();
         }
 
         @Override // OutputStream

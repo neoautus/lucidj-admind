@@ -89,32 +89,47 @@ public class Admind
 
     private void assign_task (File req_file)
     {
-        log.info ("assign_task: {} size={}", req_file, req_file.length());
+        log.debug ("assign_task: {} size={}", req_file, req_file.length ());
 
         String identifier = req_file.getName ().substring (0, req_file.getName ().lastIndexOf ('.'));
         String name = TaskThread.getTaskName (identifier);
+        String err_message = null;
 
         if (name == null)
         {
-            File err_file = new File (admind_dir, identifier + ".err");
+            err_message = "Invalid task identifier";
+        }
+        else
+        {
+            if (available_tasks.containsKey (name))
+            {
+                TaskProvider provider = available_tasks.get (name);
+                Thread task_thread = TaskThread.newInstance (admind_group, provider, req_file);
+                log.debug ("Task {} => {}", identifier, task_thread);
+
+                if (task_thread != null)
+                {
+                    task_thread.start ();
+                }
+            }
+            else
+            {
+                err_message = "Task '" + name + "' not found";
+            }
+        }
+
+        if (err_message != null)
+        {
+            File err_file = new File (req_file.getParent (), identifier + ".err");
 
             try (PrintWriter pw = new PrintWriter (err_file))
             {
-                pw.println ("This task file requires at least an unique task id after --");
-                pw.println ("Example: " + identifier + "--12345");
+                pw.println (err_message + ": " + req_file.getName ());
             }
             catch (IOException e)
             {
                 log.warn ("Exception creating err file {}: {}", err_file.getName (), e.toString ());
             }
-            return;
-        }
-
-        if (available_tasks.containsKey (name))
-        {
-            TaskProvider provider = available_tasks.get (name);
-            Thread task_thread = new TaskThread (admind_group, provider, req_file);
-            task_thread.start ();
         }
     }
 
@@ -167,9 +182,6 @@ public class Admind
                 {
                     for (WatchEvent<?> event: watch_key.pollEvents ())
                     {
-                        log.info ("Event: kind={} context={}", event.kind (), event.context ());
-                        log.info ("type of context: {}", event.context ().getClass());
-
                         if (event.context () instanceof Path)
                         {
                             File req_file = new File (admind_dir, event.context ().toString ());
@@ -241,7 +253,7 @@ public class Admind
             {
                 watch_admind_dir ();
             }
-        }, "Polling");
+        }, "Polling [" + admind_dir + "]");
         admind_main_thread.start ();
         return (true);
     }
