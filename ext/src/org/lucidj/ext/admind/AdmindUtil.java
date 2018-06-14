@@ -16,26 +16,39 @@
 
 package org.lucidj.ext.admind;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.Set;
 
 public class AdmindUtil
 {
     private final static String BASE_DIRECTORY = "jvm_admind_";
+    private final static String SERVERDATA_PROPERTIES = "serverdata.properties";
+    private final static String SERVER_NAME_PROPERTY = "server.name";
+
+    private final static int DEFAULT_WAIT_TIMEOUT_MS = 15000;
+
+    public final static String REQUEST_SUFFIX = ".run";
+    public final static String RESPONSE_SUFFIX = ".out";
+    public final static String STATUS_SUFFIX = ".err";
+
+    public static int ASYNC_ERROR = 0;
+    public static int ASYNC_PENDING = 1;
+    public static int ASYNC_RUNNING = 2;
+    public static int ASYNC_READY = 3;
 
     private static String jvm_id;
     private static String tmp_dir;
     private static String root_admind_dir;
     private static String admind_dir;
+    private static String default_server_name;
 
     private static Thread cleanup_thread_hook = null;
 
@@ -63,6 +76,9 @@ public class AdmindUtil
 
         // Our local JVM-specific AdminD directory (like /tmp/jvm_admind_spock/31415_ncc1701)
         admind_dir = root_admind_dir + File.separator + jvm_id.replaceAll ("\\p{P}", "_");
+
+        // Each user have its own default server named like 'server_{user.name}'
+        default_server_name = System.getProperty (SERVER_NAME_PROPERTY, "server_" + System.getProperty ("user.name"));
     }
 
     private static boolean is_valid_dir (String dir)
@@ -82,6 +98,34 @@ public class AdmindUtil
         return (is_valid_dir (admind_dir)? admind_dir: null);
     }
 
+    //=================================================================================================================
+    // DIRECTORY CREATION
+    //=================================================================================================================
+
+    private static void fix_permissions (File file_or_dir)
+        throws IOException
+    {
+        // Test for modern systems
+        if (System.getProperty ("os.name", "ManchesterBaby").startsWith ("Windows"))
+        {
+            // TODO: FIX PERMISSIONS WINDOWS WAY
+        }
+        else // Default: Unix/Linux way
+        {
+            // Select permissions as usable only to owner (u+rw[x],go-rw[x])
+            Set<PosixFilePermission> perms = new HashSet<> ();
+            perms.add (PosixFilePermission.OWNER_READ);
+            perms.add (PosixFilePermission.OWNER_WRITE);
+
+            if (file_or_dir.isDirectory ())
+            {
+                // Directories need u+x also
+                perms.add (PosixFilePermission.OWNER_EXECUTE);
+            }
+            Files.setPosixFilePermissions (file_or_dir.toPath (), perms);
+        }
+    }
+
     private static void mksane (String dir)
         throws IOException
     {
@@ -97,14 +141,8 @@ public class AdmindUtil
             }
         }
 
-        // TODO: HANDLE PERMISSIONS ON WINDOZE TOO
-
         // Set directory permissions as usable only to owner (u+rwx,go-rwx)
-        Set<PosixFilePermission> perms = new HashSet<> ();
-        perms.add (PosixFilePermission.OWNER_READ);
-        perms.add (PosixFilePermission.OWNER_WRITE);
-        perms.add (PosixFilePermission.OWNER_EXECUTE);
-        Files.setPosixFilePermissions (fdir.toPath (), perms);
+        fix_permissions (fdir);
     }
 
     public static String setupAdmindDir (boolean setupShutdownHook)
@@ -118,6 +156,19 @@ public class AdmindUtil
         {
             throw (new IOException ("Unknown error trying to setup: " + admind_dir));
         }
+
+        // Create the server data file with owner-only permissions
+        File serverdata_file = new File (admind_dir, SERVERDATA_PROPERTIES);
+        if (!serverdata_file.createNewFile ())
+        {
+            throw (new IOException ("Unable to create file: " + serverdata_file));
+        }
+        fix_permissions (serverdata_file);
+
+        // Store system properties
+        String comments = "Properties for " + jvm_id;
+        System.setProperty (SERVER_NAME_PROPERTY, default_server_name);     // Make sure server.name is present
+        System.getProperties ().store (new FileOutputStream (serverdata_file), comments);
 
         if (setupShutdownHook && cleanup_thread_hook == null)
         {
@@ -133,14 +184,15 @@ public class AdmindUtil
                     catch (IOException e)
                     {
                         String lastwords =
-                                "On "
-                                        + (new Date ().toString ())
-                                        + " error removing AdminD directory: "
-                                        + admind_dir;
+                            "On "
+                            + (new Date ().toString ())
+                            + " error removing AdminD directory: "
+                            + admind_dir;
 
                         try
                         {
-                            FileOutputStream postmortem = new FileOutputStream (root_admind_dir + "/postmortem.log", true);
+                            FileOutputStream postmortem =
+                                new FileOutputStream (root_admind_dir + "/postmortem.log", true);
                             Exception farewell = new Exception (lastwords, e.getCause ());
                             farewell.printStackTrace (new PrintWriter (postmortem));
                         }
@@ -186,6 +238,274 @@ public class AdmindUtil
                 return (FileVisitResult.CONTINUE);
             }
         });
+    }
+
+    //=================================================================================================================
+    // DIRECTORY DISCOVERY
+    //=================================================================================================================
+
+    public static String initAdmindDir ()
+    {
+        return (initAdmindDir (null));
+    }
+
+    public static String initAdmindDir (String server_name)
+    {
+        if (server_name == null)
+        {
+            server_name = default_server_name;
+        }
+
+        File user_jvms = new File (root_admind_dir);
+        File[] jvm_dir_list = user_jvms.listFiles ();
+
+        for (File jvm_dir: jvm_dir_list)
+        {
+            if (!jvm_dir.isDirectory ())
+            {
+                continue;
+            }
+
+            File serverdata_file = new File (jvm_dir, SERVERDATA_PROPERTIES);
+            Properties serverdata = new Properties ();
+
+            try
+            {
+                serverdata.load (new FileInputStream (serverdata_file));
+            }
+            catch (IOException ignore) {};
+
+            if (server_name.equals (serverdata.getProperty (SERVER_NAME_PROPERTY)))
+            {
+                String test_dir = jvm_dir.getPath ();
+
+                if (is_valid_dir (test_dir))
+                {
+                    admind_dir = test_dir;
+                    return (admind_dir);
+                }
+            }
+        }
+        return (null);
+    }
+
+    //=================================================================================================================
+    // ASYNCHRONOUS TASKS
+    //=================================================================================================================
+
+    public static String asyncInvoke (String task, String data, String... options)
+    {
+        String dir = getAdmindDir ();
+
+        if (dir == null)
+        {
+            return (null);
+        }
+
+        StringBuilder sb = new StringBuilder ();
+        sb.append(task);
+
+        if (options != null && options.length > 0)
+        {
+            sb.append ("-");
+
+            for (String option: options)
+            {
+                sb.append('-');
+                sb.append(option);
+            }
+        }
+        sb.append("--");
+
+        int base_identifier_len = sb.length ();
+        File request = null;
+
+        for (int attemps = 0; attemps < 10; attemps++)
+        {
+            sb.setLength (base_identifier_len);
+            sb.append (Long.toHexString (Double.doubleToLongBits (Math.random ())));
+            sb.append (REQUEST_SUFFIX);
+            request = new File (dir, sb.toString ());
+
+            try
+            {
+                if (request.createNewFile ())
+                {
+                    fix_permissions (request);
+                    break;
+                }
+                request = null;
+            }
+            catch (IOException ignore) {};
+        }
+
+        if (request == null)
+        {
+            return (null);
+        }
+
+        OutputStream os = null;
+
+        try
+        {
+            os = new FileOutputStream (request);
+            os.write (data.getBytes (StandardCharsets.UTF_8));
+            os.close ();
+            return (request.getPath ());
+        }
+        catch (IOException e)
+        {
+            if (os != null)
+            {
+                try
+                {
+                    os.close ();
+                }
+                catch (IOException ignore) {};
+            }
+        }
+        request.delete ();
+        return (null);
+    }
+
+    private static File get_request (String request)
+    {
+        return (new File (request));
+    }
+
+    private static File get_response (String request)
+    {
+        return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + RESPONSE_SUFFIX));
+    }
+
+    private static File get_status (String request)
+    {
+        return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + STATUS_SUFFIX));
+    }
+
+    private static String get_contents (File file)
+    {
+        try
+        {
+            byte[] contents = Files.readAllBytes (file.toPath ());
+            return (new String (contents, StandardCharsets.UTF_8));
+        }
+        catch (IOException e)
+        {
+            return (null);
+        }
+    }
+
+    public static int asyncStatus (String request)
+    {
+        File status = get_status (request);
+
+        // Status -> task finished
+        if (status.exists ())
+        {
+            // Status empty = success, not empty = error message
+            return (status.length () == 0? ASYNC_READY: ASYNC_ERROR);
+        }
+        else if (get_response (request).exists ())
+        {
+            // Response -> task is running
+            return (ASYNC_RUNNING);
+        }
+        else if (get_request (request).exists ())
+        {
+            // Only request exists
+            return (ASYNC_PENDING);
+        }
+        else
+        {
+            // No request -> failure
+            return (ASYNC_ERROR);
+        }
+    }
+
+    public static int asyncPoll (String request)
+    {
+        int status = asyncStatus (request);
+
+        if (status == ASYNC_READY || status == ASYNC_ERROR)
+        {
+            return (status);
+        }
+
+        try
+        {
+            // We are doing things on filesystem level, 1ms is good enough
+            Thread.sleep (1);
+        }
+        catch (InterruptedException ignore) {};
+
+        return (asyncStatus (request));
+    }
+
+    public static boolean asyncWait (String request, long timeout_ms)
+    {
+        long timeout = System.currentTimeMillis () + timeout_ms;
+        int status;
+
+        do
+        {
+            if (timeout < System.currentTimeMillis())
+            {
+                // Force cleanup
+                asyncError (request);
+                return (false);
+            }
+            status = asyncPoll (request);
+        }
+        while (status != ASYNC_READY && status != ASYNC_ERROR);
+
+        // We return true/false because here it can be only ASYNC_READY or ASYNC_ERROR
+        return (status == ASYNC_READY);
+    }
+
+    public static boolean asyncWait (String request)
+    {
+        return (asyncWait (request, DEFAULT_WAIT_TIMEOUT_MS));
+    }
+
+    public static boolean asyncFinished (String request)
+    {
+        return (get_status (request).exists ());
+    }
+
+    private static void remove_transaction (String request)
+    {
+        get_request (request).delete ();
+        get_response (request).delete ();
+        get_status (request).delete ();
+    }
+
+    public static String asyncResponse (String request)
+    {
+        if (asyncStatus (request) != ASYNC_READY)
+        {
+            // We filter out any partial results
+            return (null);
+        }
+
+        // Transaction successful, read response and cleanup
+        String contents = get_contents (get_response (request));
+        remove_transaction (request);
+        return (contents);
+    }
+
+    public static String asyncPeekResponse (String request)
+    {
+        return (get_contents (get_response (request)));
+    }
+
+    public static String asyncError (String request)
+    {
+        String error = get_contents (get_status (request));
+
+        // Always remove the transaction...
+        remove_transaction (request);
+        return (error);
     }
 }
 
