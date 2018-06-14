@@ -576,32 +576,46 @@
     </macrodef>
 
     <macrodef name="build.classic.jar">
-        <attribute name="name"/>
-        <attribute name="version"/>
         <attribute name="src"/>
+        <attribute name="name" default="@{src}"/>
+        <attribute name="version" default="none"/>
         <attribute name="outfileProperty" default="classic.temp.jar"/>
+        <element name="manifests" optional="yes"/>
         <element name="classpaths" optional="yes"/>
+        <element name="addjar" optional="yes"/>
         <sequential>
+            <local name="jar.name"/>
+            <condition property="jar.name" value="@{name}" else="@{name}-@{version}">
+                <equals arg1="@{version}" arg2="none"/>
+            </condition>
+
             <local name="classes.dir"/>
-            <property name="classes.dir" value="${build.dir}/@{name}-@{version}"/>
+            <property name="classes.dir" value="${build.dir}/${jar.name}"/>
             <delete dir="${classes.dir}" quiet="true"/>
             <mkdir dir="${classes.dir}"/>
+
             <javac srcdir="@{src}" destdir="${classes.dir}"
                    debug="${javac.debug}" debuglevel="${javac.debuglevel}" deprecation="${javac.deprecation}"
                    source="${javac.source}" target="${javac.target}" bootclasspath="${javac.bootclasspath}"
                    includeantruntime="false">
                 <compilerarg line="${javac.optional}"/>
-                <classpaths/>
+                <classpath>
+                    <classpaths/>
+                </classpath>
             </javac>
 
             <local name="dist.jar"/>
-            <property name="dist.jar" value="${dist.dir}/@{name}/@{name}-@{version}.jar"/>
+            <property name="dist.jar" value="${dist.dir}/@{name}/${jar.name}.jar"/>
             <local name="classic.temp.jar"/>
             <property name="@{outfileProperty}" value="${dist.jar}"/>
             <delete file="${dist.jar}"/>
             <jar destfile="${dist.jar}">
-                <!-- manifest? -->
+                <addjar/>
                 <fileset dir="${classes.dir}" includes="**/*"/>
+                <manifest>
+                    <!-- Some jars actually are not meant to be bundles! -->
+                    <attribute name="Disclaimer" value="  |\      _,,,--,,_        +----------------------------+              /,`.-'`'   ._  \-;;,_    |  This jar is meant to be   |       Zzzz  |,4-  ) )_   .;.(  `'-'   |  classic, not OSGi bundle  |            '---''(_/._)-'(_\_)        +----------------------------+"/><manifests/>
+                </manifest>
             </jar>
         </sequential>
     </macrodef>
