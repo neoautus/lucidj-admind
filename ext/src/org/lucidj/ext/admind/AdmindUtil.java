@@ -247,6 +247,11 @@ public class AdmindUtil
     // DIRECTORY DISCOVERY
     //=================================================================================================================
 
+    public static String getDefaultServerName ()
+    {
+        return (default_server_name);
+    }
+
     public static String initAdmindDir ()
     {
         return (initAdmindDir (null));
