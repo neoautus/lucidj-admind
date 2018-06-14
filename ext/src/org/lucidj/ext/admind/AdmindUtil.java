@@ -25,6 +25,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 
 public class AdmindUtil
@@ -51,6 +52,8 @@ public class AdmindUtil
     private static String default_server_name;
 
     private static Thread cleanup_thread_hook = null;
+
+    private static Random random = new Random ();
 
     static
     {
@@ -323,7 +326,7 @@ public class AdmindUtil
         for (int attemps = 0; attemps < 10; attemps++)
         {
             sb.setLength (base_identifier_len);
-            sb.append (Long.toHexString (Double.doubleToLongBits (Math.random ())));
+            sb.append (Long.toHexString (random.nextLong ()));
             sb.append (REQUEST_SUFFIX);
             request = new File (dir, sb.toString ());
 
