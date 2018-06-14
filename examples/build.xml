@@ -27,6 +27,10 @@
             <fileset dir="${artifacts.dir}" includes="api/*.jar"/>
         </path>
 
+        <path id="project-ext">
+            <fileset dir="${artifacts.dir}" includes="ext/*.jar"/>
+        </path>
+
     </target>
 
     <target name="build-all" depends="init">
@@ -42,6 +46,18 @@
                 <path refid="default/slf4j-api"/>
             </classpath>
         </build.module>
+
+        <build.classic.jar src="invoke">
+            <manifests>
+                <attribute name="Main-Class" value="org.lucidj.examples.invoke.Invoke"/>
+            </manifests>
+            <classpaths>
+                <path refid="project-ext"/>
+            </classpaths>
+            <addjar>
+                <zipgroupfileset dir="${artifacts.dir}" includes="ext/*.jar"/>
+            </addjar>
+        </build.classic.jar>
 
     </target>
 
