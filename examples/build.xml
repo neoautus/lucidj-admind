@@ -38,7 +38,7 @@
         <!-- Default for deploy -->
         <property name="deploy.flag" value="false"/>
 
-        <build.module dir="echo" symbolicName="org.lucidj.examples.echo" version="1.0.0"
+        <build.module dir="toupper" symbolicName="org.lucidj.examples.toupper" version="1.0.0"
             deploy="${deploy.flag}" ipojo="false">
             <classpath>
                 <path refid="project-api"/>

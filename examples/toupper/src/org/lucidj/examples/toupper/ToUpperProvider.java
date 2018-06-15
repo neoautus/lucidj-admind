@@ -14,8 +14,9 @@
  * the License.
  */
 
-package org.lucidj.examples.echo;
+package org.lucidj.examples.toupper;
 
+import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -28,17 +29,17 @@ import java.io.OutputStream;
 import java.util.Dictionary;
 import java.util.Hashtable;
 
-public class EchoProvider implements TaskProvider, BundleActivator
+public class ToUpperProvider implements TaskProvider, BundleActivator
 {
-    private final static Logger log = LoggerFactory.getLogger (EchoProvider.class);
+    private final static Logger log = LoggerFactory.getLogger (ToUpperProvider.class);
 
     private ServiceRegistration<TaskProvider> provider_registration;
 
     @Override // TaskProvider
-    public Runnable createTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options)
+    public Task createTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options)
     {
-        log.info ("New EchoTask: locator={} options={}", locator, (Object)options);
-        return (new EchoTask (in, out, err, locator, options));
+        log.info ("New ToUpperTask: locator={} options={}", locator, (Object)options);
+        return (new ToUpperTask (in, out, err, locator, options));
     }
 
     @Override // BundleActivator
@@ -46,16 +47,16 @@ public class EchoProvider implements TaskProvider, BundleActivator
         throws Exception
     {
         Dictionary<String, Object> props = new Hashtable<>();
-        props.put (TaskProvider.NAME_FILTER, "echo");
+        props.put (TaskProvider.NAME_FILTER, "toupper");
         provider_registration = bundleContext.registerService (TaskProvider.class, this, props);
-        log.info ("EchoProvider started ({})", provider_registration);
+        log.info ("ToUpperProvider started ({})", provider_registration);
     }
 
     @Override // BundleActivator
     public void stop (BundleContext bundleContext)
         throws Exception
     {
-        log.info ("EchoProvider stopping ({})", provider_registration);
+        log.info ("ToUpperProvider stopping ({})", provider_registration);
         provider_registration.unregister ();
     }
 }

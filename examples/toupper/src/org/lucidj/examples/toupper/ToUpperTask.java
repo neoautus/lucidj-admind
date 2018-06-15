@@ -14,16 +14,33 @@
  * the License.
  */
 
-package org.lucidj.api.admind;
+package org.lucidj.examples.toupper;
+
+import org.lucidj.api.admind.Task;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public interface TaskProvider
+public class ToUpperTask implements Task
 {
-    String NAME_FILTER = TaskProvider.class.getSimpleName() + ".nameFilter";
+    private InputStream in;
+    private OutputStream out;
+    private OutputStream err;
 
-    Task createTask (InputStream in, OutputStream out, OutputStream err, String name, String... options);
+    public ToUpperTask (InputStream in, OutputStream out, OutputStream err, String name, String[] options)
+    {
+        this.in = in;
+        this.out = out;
+        this.err = err;
+    }
+
+    @Override // Task
+    public boolean run ()
+        throws Exception
+    {
+        for (int ch; (ch = in.read ()) != -1; out.write (Character.toUpperCase (ch)));
+        return (true);
+    }
 }
 
 // EOF

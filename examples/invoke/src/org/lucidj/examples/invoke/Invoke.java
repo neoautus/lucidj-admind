@@ -40,7 +40,7 @@ public class Invoke
         long start = System.nanoTime ();
 
         String data = "The quick brown fox jumped over the lazy dogs!";
-        String request = AdmindUtil.asyncInvoke ("echo", data);
+        String request = AdmindUtil.asyncInvoke ("toupper", data);
         String response = null;
         String error = null;
 

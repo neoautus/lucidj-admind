@@ -16,6 +16,9 @@
 
 package org.lucidj.admind;
 
+import org.lucidj.admind.builtin.EchoTask;
+import org.lucidj.admind.builtin.StartlevelTask;
+import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
 import org.lucidj.ext.admind.AdmindUtil;
 import org.osgi.framework.BundleContext;
@@ -30,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-public class Admind
+public class Admind implements TaskProvider
 {
     private final static Logger log = LoggerFactory.getLogger (Admind.class);
 
@@ -48,7 +51,33 @@ public class Admind
     public Admind (BundleContext context)
     {
         this.context = context;
+        init_builtin_tasks ();
         service_tracker = new TaskProviderTracker (context);
+    }
+
+    private void init_builtin_tasks ()
+    {
+        available_tasks.put (EchoTask.NAME, this);
+        available_tasks.put (StartlevelTask.NAME, this);
+    }
+
+    @Override // TaskProvider
+    public Task createTask (InputStream in, OutputStream out, OutputStream err, String locator, String... options)
+    {
+        log.info ("Built-in task: locator={} options={}", locator, (Object)options);
+
+        switch (locator)
+        {
+            case StartlevelTask.NAME:
+            {
+                return (new StartlevelTask (context, in, out, err, locator, options));
+            }
+            case EchoTask.NAME:
+            default:
+            {
+                return (new EchoTask (in, out, err, locator, options));
+            }
+        }
     }
 
     private void shutdown_watch_service ()

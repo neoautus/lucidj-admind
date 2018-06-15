@@ -16,6 +16,7 @@
 
 package org.lucidj.admind;
 
+import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +28,12 @@ public class TaskThread extends Thread
     private final static Logger log = LoggerFactory.getLogger (TaskThread.class);
 
     private String identifier;
-    private Runnable task;
+    private Task task;
     private InputStream in;
     private OutputStream out;
     private TriggeredOutputStream err;
 
-    private TaskThread (String identifier, ThreadGroup group, Runnable task,
+    private TaskThread (String identifier, ThreadGroup group, Task task,
                         InputStream in, OutputStream out, TriggeredOutputStream err)
     {
         super (group, identifier);
@@ -81,7 +82,7 @@ public class TaskThread extends Thread
         }
 
         // We have all set up to create the serving task
-        Runnable task = provider.createTask (task_in, task_out, task_err,
+        Task task = provider.createTask (task_in, task_out, task_err,
             getTaskName (identifier), getTaskOptions (identifier));
         TaskThread new_task = new TaskThread (identifier, group, task, task_in, task_out, task_err);
         new_task.setDaemon (true);
@@ -121,12 +122,15 @@ public class TaskThread extends Thread
     {
         try
         {
-            task.run ();
+            if (!task.run ())
+            {
+                err.write ("Task returned fail status\n".getBytes ());
+            }
         }
         catch (Throwable t)
         {
-            // TODO: SHOULD WE RECORD THIS INTO err_file?
-            log.warn ("Task {} throwed {}", identifier, t.toString (), t);
+            log.warn ("Task {} throwed {}", identifier, t.toString ());
+            t.printStackTrace (new PrintWriter (err));
         }
         finally
         {

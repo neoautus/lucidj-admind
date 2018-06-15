@@ -93,6 +93,7 @@
     <target name="build-examples" depends="init">
         <subant buildpath="${basedir}/examples">
             <property name="deploy.flag" value="${deploy.flag}"/>
+            <property name="dist.dir" value="${dist.dir}"/>
         </subant>
     </target>
 

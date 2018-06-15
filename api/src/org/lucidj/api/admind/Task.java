@@ -16,14 +16,9 @@
 
 package org.lucidj.api.admind;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-
-public interface TaskProvider
+public interface Task
 {
-    String NAME_FILTER = TaskProvider.class.getSimpleName() + ".nameFilter";
-
-    Task createTask (InputStream in, OutputStream out, OutputStream err, String name, String... options);
+    boolean run () throws Exception;
 }
 
 // EOF

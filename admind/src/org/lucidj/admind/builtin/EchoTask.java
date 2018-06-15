@@ -14,37 +14,34 @@
  * the License.
  */
 
-package org.lucidj.examples.echo;
+package org.lucidj.admind.builtin;
 
-import java.io.IOException;
+import org.lucidj.api.admind.Task;
+
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 
-public class EchoTask implements Runnable
+public class EchoTask implements Task
 {
+    public final static String NAME = "echo";
+
     private InputStream in;
     private OutputStream out;
     private OutputStream err;
 
-    public EchoTask (InputStream in, OutputStream out, OutputStream err, String name, String[] options)
+    public EchoTask (InputStream in, OutputStream out, OutputStream err, String name, String... options)
     {
         this.in = in;
         this.out = out;
         this.err = err;
     }
 
-    @Override
-    public void run()
+    @Override // Task
+    public boolean run ()
+        throws Exception
     {
-        try
-        {
-            for (int ch; (ch = in.read ()) != -1; out.write (Character.toUpperCase (ch)));
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace (new PrintWriter (err));
-        }
+        for (int ch; (ch = in.read ()) != -1; out.write (Character.toUpperCase (ch)));
+        return (true);
     }
 }
 
