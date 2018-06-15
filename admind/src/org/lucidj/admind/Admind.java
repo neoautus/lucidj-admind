@@ -17,6 +17,7 @@
 package org.lucidj.admind;
 
 import org.lucidj.admind.builtin.EchoTask;
+import org.lucidj.admind.builtin.ShutdownTask;
 import org.lucidj.admind.builtin.StartlevelTask;
 import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
@@ -59,6 +60,7 @@ public class Admind implements TaskProvider
     {
         available_tasks.put (EchoTask.NAME, this);
         available_tasks.put (StartlevelTask.NAME, this);
+        available_tasks.put (ShutdownTask.NAME, this);
     }
 
     @Override // TaskProvider
@@ -68,6 +70,10 @@ public class Admind implements TaskProvider
 
         switch (locator)
         {
+            case ShutdownTask.NAME:
+            {
+                return (new ShutdownTask (context, in, out, err, locator, options));
+            }
             case StartlevelTask.NAME:
             {
                 return (new StartlevelTask (context, in, out, err, locator, options));
