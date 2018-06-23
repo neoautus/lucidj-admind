@@ -19,12 +19,18 @@ package org.lucidj.admind.builtin;
 import org.lucidj.api.admind.Task;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.launch.Framework;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.util.Date;
 
 public class ShutdownTask implements Task
 {
+    private final static Logger log = LoggerFactory.getLogger (ShutdownTask.class);
+
     public final static String NAME = "shutdown";
 
     private BundleContext context;
@@ -45,6 +51,14 @@ public class ShutdownTask implements Task
     public boolean run ()
         throws Exception
     {
+        String message = "Shutdown requested on " + (new Date().toString());
+
+        try (PrintWriter pout = new PrintWriter (out, true))
+        {
+            pout.println (message);
+        }
+        log.info (message);
+
         context.getBundle (0).adapt (Framework.class).stop ();
         return (true);
     }
