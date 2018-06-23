@@ -22,6 +22,7 @@ import org.lucidj.admind.builtin.StartlevelTask;
 import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
 import org.lucidj.ext.admind.AdmindUtil;
+import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.util.tracker.ServiceTracker;
@@ -183,6 +184,12 @@ public class Admind implements TaskProvider
                 shutdown_watch_service ();
                 admind_dir = null;
 
+                if (context.getBundle (0).getState () != Bundle.ACTIVE)
+                {
+                    log.info ("Stopping AdminD due to framework shutdown");
+                    break;
+                }
+
                 try
                 {
                     admind_dir = AdmindUtil.setupAdmindDir ();
@@ -270,6 +277,7 @@ public class Admind implements TaskProvider
                 // No, we need to create it and delete later
                 cleanup_admind_dir = true;
                 admind_dir = AdmindUtil.setupAdmindDir ();
+                AdmindUtil.startKeepAlive ();
                 log.info ("Directory {} was created", admind_dir);
             }
         }
@@ -309,6 +317,7 @@ public class Admind implements TaskProvider
             if (cleanup_admind_dir)
             {
                 // We only remove the dir if we created it
+                AdmindUtil.stopKeepAlive ();
                 AdmindUtil.cleanupAdmindDir ();
             }
 
