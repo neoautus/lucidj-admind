@@ -21,6 +21,7 @@ import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Date;
 import java.util.HashSet;
@@ -31,9 +32,9 @@ import java.util.Set;
 public class AdmindUtil
 {
     private final static String BASE_DIRECTORY = "jvm_admind_";
-    private final static String SERVERDATA_PROPERTIES = "serverdata.properties";
     private final static String SERVER_NAME_PROPERTY = "server.name";
 
+    private final static int JVM_LINGER_TIME_MS = 5000;
     private final static int DEFAULT_WAIT_TIMEOUT_MS = 15000;
 
     public final static String REQUEST_SUFFIX = ".run";
@@ -52,6 +53,7 @@ public class AdmindUtil
     private static String default_server_name;
 
     private static Thread cleanup_thread_hook = null;
+    private static Thread keepalive_thread = null;
 
     private static Random random = new Random ();
 
@@ -161,7 +163,7 @@ public class AdmindUtil
         }
 
         // Create the server data file with owner-only permissions
-        File serverdata_file = new File (admind_dir, SERVERDATA_PROPERTIES);
+        File serverdata_file = new File (admind_dir, default_server_name + ".properties");
         if (!serverdata_file.createNewFile ())
         {
             throw (new IOException ("Unable to create file: " + serverdata_file));
@@ -206,6 +208,43 @@ public class AdmindUtil
             Runtime.getRuntime ().addShutdownHook (cleanup_thread_hook);
         }
         return (admind_dir);
+    }
+
+    public static void startKeepAlive ()
+    {
+        if (keepalive_thread != null)
+        {
+            // Already set
+            return;
+        }
+
+        // The keepalive thread simple updates every second the last modified time
+        // for the serverdata file at: /tmp/jvm_admind_{user.name}/{server.name}.properties
+        keepalive_thread = new Thread ("AdminD Keep-Alive")
+        {
+            @Override
+            public void run ()
+            {
+                while (keepalive_thread != null && !keepalive_thread.isInterrupted ())
+                {
+                    try
+                    {
+                        Path serverdata_path = Paths.get (admind_dir, default_server_name + ".properties");
+                        Files.setLastModifiedTime (serverdata_path, FileTime.fromMillis (System.currentTimeMillis ()));
+                        Thread.sleep (1000);
+                    }
+                    catch (IOException | InterruptedException ignore) {};
+                }
+            }
+        };
+        keepalive_thread.setDaemon (true);
+        keepalive_thread.start ();
+    }
+
+    public static void stopKeepAlive ()
+    {
+        keepalive_thread.interrupt ();
+        keepalive_thread = null;
     }
 
     public static String setupAdmindDir ()
@@ -267,6 +306,11 @@ public class AdmindUtil
         File user_jvms = new File (root_admind_dir);
         File[] jvm_dir_list = user_jvms.listFiles ();
 
+        if (jvm_dir_list == null)
+        {
+            return (null);
+        }
+
         for (File jvm_dir: jvm_dir_list)
         {
             if (!jvm_dir.isDirectory ())
@@ -274,11 +318,20 @@ public class AdmindUtil
                 continue;
             }
 
-            File serverdata_file = new File (jvm_dir, SERVERDATA_PROPERTIES);
+            File serverdata_file = new File (jvm_dir, server_name + ".properties");
             Properties serverdata = new Properties ();
 
             try
             {
+                FileTime last_modified = Files.getLastModifiedTime (Paths.get (serverdata_file.toURI ()));
+
+                if (last_modified.toMillis () + JVM_LINGER_TIME_MS < System.currentTimeMillis ())
+                {
+                    // The JVM this serverdata file is referring has not touched the
+                    // file for 5 seconds. Probably the JVM has gone and left admind adrift.
+                    continue;
+                }
+
                 serverdata.load (new FileInputStream (serverdata_file));
             }
             catch (IOException ignore) {};
