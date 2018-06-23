@@ -171,7 +171,7 @@ public class Admind implements TaskProvider
 
     public void watch_admind_dir ()
     {
-        log.info ("AdminD started");
+        log.info ("AdminD started on {}", admind_dir);
 
         while (!admind_main_thread.isInterrupted ())
         {
