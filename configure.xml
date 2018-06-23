@@ -38,6 +38,7 @@
     <property name="artifacts.dir" value="${configure.dir}/build/artifacts"/>
     <property name="libcache.dir" value="${cache.dir}/lib"/>
     <property name="tmp.dir" value="${cache.dir}/tmp"/>
+    <property name="user.cache.dir" value="${user.home}/.configure-cache"/>
 
     <!-- Comment out if you want default Ivy cache location ${user.home}/.ivy2 -->
     <property name="ivy.default.ivy.user.dir" value="${cache.dir}/ivy2" />
@@ -110,18 +111,87 @@
         <attribute name="rev"/>
         <attribute name="type" default="jar"/>
         <sequential>
-            <local name="dest.file"/>
-            <property name="dest.file" value="${libcache.dir}/@{group}/@{name}-@{rev}.@{type}"/>
-            <if><not><available file="${dest.file}"/></not>
+
+            <!-- The file downloaded from external repositories like Github -->
+            <local name="_cache.file"/>
+            <property name="_cache.file"
+                value="${user.cache.dir}/@{org}/@{name}/@{name}-@{rev}.@{type}"/>
+
+            <!-- The file built locally -->
+            <local name="_cache.snapshot.file"/>
+            <property name="_cache.snapshot.file"
+                value="${user.cache.dir}/@{org}/@{name}/@{name}-@{rev}-SNAPSHOT.@{type}"/>
+
+            <!-- If a local snapshot exists use it, otherwise use downloaded file -->
+            <local name="_source.file"/>
+            <condition property="_source.file" value="${_cache.snapshot.file}" else="${_cache.file}">
+                <and>
+                    <available file="${_cache.snapshot.file}" type="file"/>
+                    <not><isset property="no-snapshots"/></not>
+                </and>
+            </condition>
+
+            <!-- The downloaded file is available? -->
+            <if><not><available file="${_source.file}"/></not>
                 <then>
-                    <mkdir dir="${libcache.dir}/@{group}"/>
-                    <get dest="${libcache.dir}/@{group}/@{name}.tmp"
-                         src="https://github.com/@{org}/releases/download/@{rev}/@{name}-@{rev}.jar"
-                         skipexisting="false"/>
-                    <move file="${libcache.dir}/@{group}/@{name}.tmp"
-                          tofile="${dest.file}"/>
+                    <!-- Create the base diretory location -->
+                    <local name="_source.dirname"/>
+                    <dirname property="_source.dirname" file="${_source.file}"/>
+                    <mkdir dir="${_source.dirname}"/>
+
+                    <!-- Make magic conversions -->
+                    <local name="_project.dir"/>
+                    <loadresource property="_project.dir">
+                        <string value="@{org}"/>
+                        <filterchain>
+                            <!-- Make org.lucidj.someproject => neoautus/lucidj-someproject -->
+                            <replacestring from="org.lucidj." to="neoautus/lucidj-"/>
+                        </filterchain>
+                    </loadresource>
+
+                    <!-- Get the file from repository -->
+                    <get dest="${_source.dirname}/@{name}.tmp"
+                        src="https://github.com/${_project.dir}/releases/download/@{rev}/@{name}-@{rev}.@{type}"
+                        skipexisting="false"/>
+                    <move file="${_source.dirname}/@{name}.tmp"
+                        tofile="${_source.file}"/>
                 </then>
             </if>
+
+            <!-- TODO: DELETE THE TARGET.JAR AND TARGET-SNAPSHOT.JAR TO AVOID CONFLICT -->
+
+            <!-- Now we have either the downloaded file or the snapshot available to copy from -->
+            <local name="_dest.file"/>
+            <property name="_dest.file" value="${libcache.dir}/@{group}/@{name}-@{rev}.@{type}"/>
+            <local name="_dest.dirname"/>
+            <dirname property="_dest.dirname" file="${_dest.file}"/>
+            <mkdir dir="${_dest.dirname}"/>
+            <local name="_dest.basename"/>
+            <basename property="_dest.basename" file="${_source.file}"/>
+            <echo taskname="getDependency" message="Source artifact: ${_source.file}"/>
+            <copy file="${_source.file}" tofile="${_dest.dirname}/${_dest.basename}" taskname="getDependency" overwrite="true"/>
+
+        </sequential>
+    </macrodef>
+
+    <macrodef name="publish">
+        <attribute name="file"/>
+        <attribute name="org"/>
+        <attribute name="name"/>
+        <attribute name="rev"/>
+        <attribute name="type" default="jar"/>
+        <sequential>
+            <!-- Store the file with the intended version -->
+            <local name="_cache.file"/>
+            <property name="_cache.file"
+                value="${user.cache.dir}/@{org}/@{name}/@{name}-@{rev}.@{type}"/>
+            <copy file="@{file}" tofile="${_cache.file}" overwrite="true"/>
+
+            <!-- Store the file last snapshot -->
+            <local name="_cache.snapshot.file"/>
+            <property name="_cache.snapshot.file"
+                value="${user.cache.dir}/@{org}/@{name}/@{name}-@{rev}-SNAPSHOT.@{type}"/>
+            <copy file="@{file}" tofile="${_cache.snapshot.file}" overwrite="true"/>
         </sequential>
     </macrodef>
 
@@ -576,10 +646,10 @@
     </macrodef>
 
     <macrodef name="build.classic.jar">
-        <attribute name="src"/>
+        <attribute name="src" default="${basedir}/src"/>
         <attribute name="name" default="@{src}"/>
         <attribute name="version" default="none"/>
-        <attribute name="outfileProperty" default="classic.temp.jar"/>
+        <attribute name="outfileProperty" default="_classic.temp.jar"/>
         <element name="manifests" optional="yes"/>
         <element name="classpaths" optional="yes"/>
         <element name="addjar" optional="yes"/>
@@ -589,12 +659,12 @@
                 <equals arg1="@{version}" arg2="none"/>
             </condition>
 
-            <local name="classes.dir"/>
-            <property name="classes.dir" value="${build.dir}/${jar.name}"/>
-            <delete dir="${classes.dir}" quiet="true"/>
-            <mkdir dir="${classes.dir}"/>
+            <local name="_classes.dir"/>
+            <property name="_classes.dir" value="${build.dir}/${jar.name}"/>
+            <delete dir="${_classes.dir}" quiet="true"/>
+            <mkdir dir="${_classes.dir}"/>
 
-            <javac srcdir="@{src}" destdir="${classes.dir}"
+            <javac srcdir="@{src}" destdir="${_classes.dir}"
                    debug="${javac.debug}" debuglevel="${javac.debuglevel}" deprecation="${javac.deprecation}"
                    source="${javac.source}" target="${javac.target}" bootclasspath="${javac.bootclasspath}"
                    includeantruntime="false">
@@ -604,14 +674,14 @@
                 </classpath>
             </javac>
 
-            <local name="dist.jar"/>
-            <property name="dist.jar" value="${dist.dir}/@{name}/${jar.name}.jar"/>
-            <local name="classic.temp.jar"/>
-            <property name="@{outfileProperty}" value="${dist.jar}"/>
-            <delete file="${dist.jar}"/>
-            <jar destfile="${dist.jar}">
+            <local name="_dist.jar"/>
+            <property name="_dist.jar" value="${dist.dir}/@{name}/${jar.name}.jar"/>
+            <local name="_classic.temp.jar"/>
+            <property name="@{outfileProperty}" value="${_dist.jar}"/>
+            <delete file="${_dist.jar}"/>
+            <jar destfile="${_dist.jar}">
                 <addjar/>
-                <fileset dir="${classes.dir}" includes="**/*"/>
+                <fileset dir="${_classes.dir}" includes="**/*"/>
                 <manifest>
                     <!-- Some jars actually are not meant to be bundles! -->
                     <attribute name="Disclaimer" value="  |\      _,,,--,,_        +----------------------------+              /,`.-'`'   ._  \-;;,_    |  This jar is meant to be   |       Zzzz  |,4-  ) )_   .;.(  `'-'   |  classic, not OSGi bundle  |            '---''(_/._)-'(_\_)        +----------------------------+"/><manifests/>
