@@ -261,14 +261,24 @@ public class AdmindUtil
             // The directory doesn't exists anyway
             return;
         }
+        deleteDirTree (admind_dir, false);
+    }
 
-        Files.walkFileTree (Paths.get (admind_dir), new SimpleFileVisitor<Path> ()
+    public static void deleteDirTree (String root_dir, boolean preserveRoot)
+        throws IOException
+    {
+        final Path root_path = Paths.get (root_dir);
+
+        Files.walkFileTree (root_path, new SimpleFileVisitor<Path> ()
         {
             @Override
             public FileVisitResult postVisitDirectory (Path dir, IOException exc)
                 throws IOException
             {
-                Files.delete (dir);
+                if (!preserveRoot || !root_path.equals (dir))
+                {
+                    Files.delete (dir);
+                }
                 return (FileVisitResult.CONTINUE);
             }
 
