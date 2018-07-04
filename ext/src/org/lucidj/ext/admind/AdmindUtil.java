@@ -415,41 +415,29 @@ public class AdmindUtil
             return (null);
         }
 
-        OutputStream os = null;
-
-        try
+        try (OutputStream os = new FileOutputStream (request))
         {
-            os = new FileOutputStream (request);
             os.write (data.getBytes (StandardCharsets.UTF_8));
-            os.close ();
             return (request.getPath ());
         }
-        catch (IOException e)
-        {
-            if (os != null)
-            {
-                try
-                {
-                    os.close ();
-                }
-                catch (IOException ignore) {};
-            }
-        }
+        catch (IOException ignore) {};
+
+        // Unable to process the request
         request.delete ();
         return (null);
     }
 
-    private static File get_request (String request)
+    public static File requestFile (String request)
     {
         return (new File (request));
     }
 
-    private static File get_response (String request)
+    public static File responseFile (String request)
     {
         return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + RESPONSE_SUFFIX));
     }
 
-    private static File get_status (String request)
+    public static File statusFile (String request)
     {
         return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + STATUS_SUFFIX));
     }
@@ -469,7 +457,7 @@ public class AdmindUtil
 
     public static int asyncStatus (String request)
     {
-        File status = get_status (request);
+        File status = statusFile (request);
 
         // Status -> task finished
         if (status.exists ())
@@ -477,12 +465,12 @@ public class AdmindUtil
             // Status empty = success, not empty = error message
             return (status.length () == 0? ASYNC_READY: ASYNC_ERROR);
         }
-        else if (get_response (request).exists ())
+        else if (responseFile (request).exists ())
         {
             // Response -> task is running
             return (ASYNC_RUNNING);
         }
-        else if (get_request (request).exists ())
+        else if (requestFile (request).exists ())
         {
             // Only request exists
             return (ASYNC_PENDING);
@@ -513,14 +501,14 @@ public class AdmindUtil
         return (asyncStatus (request));
     }
 
-    public static boolean asyncWait (String request, long timeout_ms)
+    public static boolean asyncWait (String request, long timeout_ms, int awaited_status)
     {
         long timeout = System.currentTimeMillis () + timeout_ms;
         int status;
 
         do
         {
-            if (timeout < System.currentTimeMillis())
+            if (timeout < System.currentTimeMillis ())
             {
                 // Force cleanup
                 asyncError (request);
@@ -528,10 +516,15 @@ public class AdmindUtil
             }
             status = asyncPoll (request);
         }
-        while (status != ASYNC_READY && status != ASYNC_ERROR);
+        while (status != awaited_status && status != ASYNC_ERROR);
 
-        // We return true/false because here it can be only ASYNC_READY or ASYNC_ERROR
-        return (status == ASYNC_READY);
+        // We return true/false because here it can be only the awaited status or ASYNC_ERROR
+        return (status == awaited_status);
+    }
+
+    public static boolean asyncWait (String request, long timeout_ms)
+    {
+        return (asyncWait (request, timeout_ms, ASYNC_READY));
     }
 
     public static boolean asyncWait (String request)
@@ -541,14 +534,14 @@ public class AdmindUtil
 
     public static boolean asyncFinished (String request)
     {
-        return (get_status (request).exists ());
+        return (statusFile (request).exists ());
     }
 
     private static void remove_transaction (String request)
     {
-        get_request (request).delete ();
-        get_response (request).delete ();
-        get_status (request).delete ();
+        requestFile (request).delete ();
+        responseFile (request).delete ();
+        statusFile (request).delete ();
     }
 
     public static String asyncResponse (String request)
@@ -560,19 +553,19 @@ public class AdmindUtil
         }
 
         // Transaction successful, read response and cleanup
-        String contents = get_contents (get_response (request));
+        String contents = get_contents (responseFile (request));
         remove_transaction (request);
         return (contents);
     }
 
     public static String asyncPeekResponse (String request)
     {
-        return (get_contents (get_response (request)));
+        return (get_contents (responseFile (request)));
     }
 
     public static String asyncError (String request)
     {
-        String error = get_contents (get_status (request));
+        String error = get_contents (statusFile (request));
 
         // Always remove the transaction...
         remove_transaction (request);
