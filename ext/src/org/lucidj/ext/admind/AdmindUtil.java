@@ -45,6 +45,7 @@ public class AdmindUtil
     public static int ASYNC_PENDING = 1;
     public static int ASYNC_RUNNING = 2;
     public static int ASYNC_READY = 3;
+    public static int ASYNC_GONE = 4;
 
     private static String jvm_id;
     private static String tmp_dir;
@@ -477,8 +478,8 @@ public class AdmindUtil
         }
         else
         {
-            // No request -> failure
-            return (ASYNC_ERROR);
+            // No request
+            return (ASYNC_GONE);
         }
     }
 
