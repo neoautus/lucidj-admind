@@ -33,6 +33,7 @@ public class AdmindUtil
 {
     private final static String BASE_DIRECTORY = "jvm_admind_";
     private final static String SERVER_NAME_PROPERTY = "server.name";
+    private final static String SERVER_JVMID_PROPERTY = "server.jvmid";
 
     private final static int JVM_LINGER_TIME_MS = 5000;
     private final static int DEFAULT_WAIT_TIMEOUT_MS = 15000;
@@ -52,6 +53,7 @@ public class AdmindUtil
     private static String root_admind_dir;
     private static String admind_dir;
     private static String default_server_name;
+    private static Properties server_properties;
 
     private static Thread cleanup_thread_hook = null;
     private static Thread keepalive_thread = null;
@@ -174,6 +176,7 @@ public class AdmindUtil
         // Store system properties
         String comments = "Properties for " + jvm_id;
         System.setProperty (SERVER_NAME_PROPERTY, default_server_name);     // Make sure server.name is present
+        System.setProperty (SERVER_JVMID_PROPERTY, jvm_id);                 // and also server.jvmid
         System.getProperties ().store (new FileOutputStream (serverdata_file), comments);
 
         if (setupShutdownHook && cleanup_thread_hook == null)
@@ -297,9 +300,14 @@ public class AdmindUtil
     // DIRECTORY DISCOVERY
     //=================================================================================================================
 
-    public static String getDefaultServerName ()
+    public static String getServerName ()
     {
         return (default_server_name);
+    }
+
+    public static Properties getServerProperties ()
+    {
+        return (server_properties);
     }
 
     public static String initAdmindDir ()
@@ -330,7 +338,7 @@ public class AdmindUtil
             }
 
             File serverdata_file = new File (jvm_dir, server_name + ".properties");
-            Properties serverdata = new Properties ();
+            server_properties = new Properties ();
 
             try
             {
@@ -338,16 +346,16 @@ public class AdmindUtil
 
                 if (last_modified.toMillis () + JVM_LINGER_TIME_MS < System.currentTimeMillis ())
                 {
-                    // The JVM this serverdata file is referring has not touched the
+                    // The JVM this server_properties file is referring has not touched the
                     // file for 5 seconds. Probably the JVM has gone and left admind adrift.
                     continue;
                 }
 
-                serverdata.load (new FileInputStream (serverdata_file));
+                server_properties.load (new FileInputStream (serverdata_file));
             }
             catch (IOException ignore) {};
 
-            if (server_name.equals (serverdata.getProperty (SERVER_NAME_PROPERTY)))
+            if (server_name.equals (server_properties.getProperty (SERVER_NAME_PROPERTY)))
             {
                 String test_dir = jvm_dir.getPath ();
 

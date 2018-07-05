@@ -23,7 +23,7 @@ public class Invoke
     public static void main (String[] args)
     {
         System.out.println ("-----");
-        String def_server_name = AdmindUtil.getDefaultServerName ();
+        String def_server_name = AdmindUtil.getServerName ();
         System.out.println ("Default server name: " + def_server_name);
 
         String admind = AdmindUtil.initAdmindDir ();
