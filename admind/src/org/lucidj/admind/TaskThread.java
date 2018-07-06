@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Files;
 
 public class TaskThread extends Thread
 {
@@ -130,7 +131,7 @@ public class TaskThread extends Thread
         catch (Throwable t)
         {
             log.warn ("Task {} throwed {}", identifier, t.toString ());
-            t.printStackTrace (new PrintWriter (err));
+            t.printStackTrace (new PrintStream (err));
         }
         finally
         {
@@ -185,7 +186,7 @@ public class TaskThread extends Thread
             {
                 shadow_os.close ();
             }
-            super.close();
+            super.close ();
         }
 
         @Override // OutputStream
@@ -198,12 +199,12 @@ public class TaskThread extends Thread
             }
         }
 
-        private OutputStream getShadow ()
+        private OutputStream get_shadow ()
             throws IOException
         {
             if (shadow_os == null)
             {
-                shadow_os = new FileOutputStream (file);
+                shadow_os = Files.newOutputStream (file.toPath ());
             }
             return (shadow_os);
         }
@@ -212,28 +213,28 @@ public class TaskThread extends Thread
             throws IOException
         {
             // Ensure the file is created
-            getShadow ();
+            get_shadow ();
         }
 
         @Override // OutputStream
         public void write (byte[] b)
             throws IOException
         {
-            getShadow ().write (b);
+            get_shadow ().write (b);
         }
 
         @Override // OutputStream
-        public void write(byte[] b, int off, int len)
+        public void write (byte[] b, int off, int len)
             throws IOException
         {
-            getShadow ().write (b, off, len);
+            get_shadow ().write (b, off, len);
         }
 
         @Override // OutputStream
         public void write (int b)
             throws IOException
         {
-            getShadow ().write (b);
+            get_shadow ().write (b);
         }
     }
 }
