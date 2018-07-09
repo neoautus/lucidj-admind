@@ -59,7 +59,7 @@ public class TaskThread extends Thread
         String identifier = request_file.getName ().substring (0, request_file.getName ().lastIndexOf ('.'));
         String request = request_file.getAbsolutePath ();
         File response_file = AdmindUtil.responseFile (request);
-        File err_file = AdmindUtil.responseFile (request);
+        File err_file = AdmindUtil.statusFile (request);
         File temp_file = AdmindUtil.tempFile (request);
         InputStream task_in = null;
         OutputStream task_out = null;
