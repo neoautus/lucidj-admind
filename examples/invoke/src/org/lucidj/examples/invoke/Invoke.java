@@ -44,9 +44,15 @@ public class Invoke
         String response = null;
         String error = null;
 
-        if (AdmindUtil.asyncWait (request))
+        int status = AdmindUtil.asyncWait (request);
+
+        if (status == AdmindUtil.ASYNC_READY)
         {
             response = AdmindUtil.asyncResponse (request);
+        }
+        else if (status == AdmindUtil.ASYNC_GONE)
+        {
+            error = "Server gone";
         }
         else
         {

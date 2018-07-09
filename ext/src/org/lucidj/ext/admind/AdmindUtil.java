@@ -41,6 +41,7 @@ public class AdmindUtil
     public final static String REQUEST_SUFFIX = ".run";
     public final static String RESPONSE_SUFFIX = ".out";
     public final static String STATUS_SUFFIX = ".err";
+    public final static String TEMP_SUFFIX = ".tmp";
 
     public static int ASYNC_ERROR = 0;
     public static int ASYNC_PENDING = 1;
@@ -446,9 +447,33 @@ public class AdmindUtil
         return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + RESPONSE_SUFFIX));
     }
 
+    public static File createAndFixPermissions (File file)
+    {
+        try
+        {
+            if (!file.exists ())
+            {
+                file.createNewFile ();
+            }
+
+            // Ensure we always have u+rw/go-rwx set
+            fix_permissions (file);
+            return (file);
+        }
+        catch (IOException e)
+        {
+            return (null);
+        }
+    }
+
     public static File statusFile (String request)
     {
         return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + STATUS_SUFFIX));
+    }
+
+    public static File tempFile (String request)
+    {
+        return (new File (request.substring (0, request.lastIndexOf (REQUEST_SUFFIX)) + TEMP_SUFFIX));
     }
 
     private static String get_contents (File file)
@@ -510,7 +535,7 @@ public class AdmindUtil
         return (asyncStatus (request));
     }
 
-    public static boolean asyncWait (String request, long timeout_ms, int awaited_status)
+    public static int asyncWait (String request, long timeout_ms, int awaited_status)
     {
         long timeout = System.currentTimeMillis () + timeout_ms;
         int status;
@@ -521,22 +546,20 @@ public class AdmindUtil
             {
                 // Force cleanup
                 asyncError (request);
-                return (false);
+                return (ASYNC_ERROR);
             }
             status = asyncPoll (request);
         }
-        while (status != awaited_status && status != ASYNC_ERROR);
-
-        // We return true/false because here it can be only the awaited status or ASYNC_ERROR
-        return (status == awaited_status);
+        while (status != awaited_status && status != ASYNC_ERROR && status != ASYNC_GONE);
+        return (status);
     }
 
-    public static boolean asyncWait (String request, long timeout_ms)
+    public static int asyncWait (String request, long timeout_ms)
     {
         return (asyncWait (request, timeout_ms, ASYNC_READY));
     }
 
-    public static boolean asyncWait (String request)
+    public static int asyncWait (String request)
     {
         return (asyncWait (request, DEFAULT_WAIT_TIMEOUT_MS));
     }

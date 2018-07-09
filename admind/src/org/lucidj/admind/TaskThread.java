@@ -18,6 +18,7 @@ package org.lucidj.admind;
 
 import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
+import org.lucidj.ext.admind.AdmindUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,14 +33,19 @@ public class TaskThread extends Thread
     private Task task;
     private InputStream in;
     private OutputStream out;
-    private TriggeredOutputStream err;
+    private OutputStream err;
+    private File temp_file;
+    private File err_file;
 
     private TaskThread (String identifier, ThreadGroup group, Task task,
-                        InputStream in, OutputStream out, TriggeredOutputStream err)
+                        File temp_file, File err_file,
+                        InputStream in, OutputStream out, OutputStream err)
     {
         super (group, identifier);
         this.identifier = identifier;
         this.task = task;
+        this.temp_file = temp_file;
+        this.err_file = err_file;
         this.in = in;
         this.out = out;
         this.err = err;
@@ -48,30 +54,34 @@ public class TaskThread extends Thread
             identifier, group, task, in, out, err);
     }
 
-    public static TaskThread newInstance (ThreadGroup group, TaskProvider provider, File request)
+    public static TaskThread newInstance (ThreadGroup group, TaskProvider provider, File request_file)
     {
-        String identifier = request.getName ().substring (0, request.getName ().lastIndexOf ('.'));
-        String basedir = request.getParent ();
-        File response = new File (basedir, identifier + ".out");
-        File status = new File (basedir, identifier + ".err");
+        String identifier = request_file.getName ().substring (0, request_file.getName ().lastIndexOf ('.'));
+        String request = request_file.getAbsolutePath ();
+        File response_file = AdmindUtil.responseFile (request);
+        File err_file = AdmindUtil.responseFile (request);
+        File temp_file = AdmindUtil.tempFile (request);
         InputStream task_in = null;
         OutputStream task_out = null;
-        TriggeredOutputStream task_err = null;
+        OutputStream task_err = null;
 
-        log.debug ("TaskThread.newInstance: request={} (size={})", request.toString(), request.length());
+        log.debug ("TaskThread.newInstance: request={} (size={})", request_file, request_file.length ());
 
         try
         {
-            // TODO: SET PROPER PERMISSIONS ON ALL THESE FILES
-            if (!response.createNewFile ())
+            if (!response_file.createNewFile ())
             {
                 // The task was already created
                 return (null);
             }
 
-            task_in = new FileInputStream (request);
-            task_out = new FileOutputStream (response);
-            task_err = new TriggeredOutputStream (status);
+            // Create and/or set proper permissions
+            AdmindUtil.createAndFixPermissions (response_file);
+            AdmindUtil.createAndFixPermissions (temp_file);
+
+            task_in = Files.newInputStream (request_file.toPath ());
+            task_out = Files.newOutputStream (response_file.toPath ());
+            task_err = Files.newOutputStream (temp_file.toPath ());
         }
         catch (IOException e)
         {
@@ -85,7 +95,8 @@ public class TaskThread extends Thread
         // We have all set up to create the serving task
         Task task = provider.createTask (task_in, task_out, task_err,
             getTaskName (identifier), getTaskOptions (identifier));
-        TaskThread new_task = new TaskThread (identifier, group, task, task_in, task_out, task_err);
+        TaskThread new_task = new TaskThread (identifier, group, task,
+            temp_file, err_file, task_in, task_out, task_err);
         new_task.setDaemon (true);
         return (new_task);
     }
@@ -135,26 +146,15 @@ public class TaskThread extends Thread
         }
         finally
         {
-            try
-            {
-                in.close ();
-            }
-            catch (Exception ignore) {};
+            closeQuietly (in);
+            closeQuietly (out);
+            closeQuietly (err);
 
-            try
-            {
-                out.close ();
-            }
-            catch (Exception ignore) {};
-
-            try
-            {
-                // The error file presence indicates thread finished.
-                // An empty error file indicates success.
-                err.touch ();
-                err.close ();
-            }
-            catch (Exception ignore) {};
+            // Only after all finished rename .tmp file to valid
+            // status file with .err extension. If we got no errors
+            // then err file will be empty (0 length).
+            temp_file.renameTo (err_file);
+            AdmindUtil.createAndFixPermissions (err_file);
         }
     }
 
@@ -165,77 +165,6 @@ public class TaskThread extends Thread
             c.close ();
         }
         catch (IOException e) {};
-    }
-
-    static class TriggeredOutputStream extends OutputStream
-    {
-        private OutputStream shadow_os;     // The real OutputStream is only created if data is written
-        private File file;
-
-        public TriggeredOutputStream (File file)
-        {
-            super ();
-            this.file = file;
-        }
-
-        @Override // OutputStream
-        public void close ()
-            throws IOException
-        {
-            if (shadow_os != null)
-            {
-                shadow_os.close ();
-            }
-            super.close ();
-        }
-
-        @Override // OutputStream
-        public void flush ()
-            throws IOException
-        {
-            if (shadow_os != null)
-            {
-                shadow_os.flush ();
-            }
-        }
-
-        private OutputStream get_shadow ()
-            throws IOException
-        {
-            if (shadow_os == null)
-            {
-                shadow_os = Files.newOutputStream (file.toPath ());
-            }
-            return (shadow_os);
-        }
-
-        public void touch ()
-            throws IOException
-        {
-            // Ensure the file is created
-            get_shadow ();
-        }
-
-        @Override // OutputStream
-        public void write (byte[] b)
-            throws IOException
-        {
-            get_shadow ().write (b);
-        }
-
-        @Override // OutputStream
-        public void write (byte[] b, int off, int len)
-            throws IOException
-        {
-            get_shadow ().write (b, off, len);
-        }
-
-        @Override // OutputStream
-        public void write (int b)
-            throws IOException
-        {
-            get_shadow ().write (b);
-        }
     }
 }
 

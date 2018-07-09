@@ -156,16 +156,20 @@ public class Admind implements TaskProvider
 
         if (err_message != null)
         {
-            File err_file = new File (req_file.getParent (), identifier + ".err");
+            String request = req_file.getAbsolutePath ();
+            File tmp_file = AdmindUtil.tempFile (request);
+            File err_file = AdmindUtil.statusFile (request);
 
-            try (PrintWriter pw = new PrintWriter (err_file))
+            try (PrintStream pw = new PrintStream (tmp_file))
             {
                 pw.println (err_message + ": " + req_file.getName ());
             }
             catch (IOException e)
             {
-                log.warn ("Exception creating err file {}: {}", err_file.getName (), e.toString ());
+                log.warn ("Exception creating err file {}: {}", tmp_file.getName (), e.toString ());
             }
+            tmp_file.renameTo (err_file);
+            AdmindUtil.createAndFixPermissions (err_file);
         }
     }
 
@@ -228,7 +232,8 @@ public class Admind implements TaskProvider
                         {
                             File req_file = new File (admind_dir, event.context ().toString ());
 
-                            if (!req_file.getName ().endsWith (".run") || req_file.length () == 0)
+                            if (!req_file.getName ().endsWith (AdmindUtil.REQUEST_SUFFIX)
+                                || req_file.length () == 0)
                             {
                                 // We ignore empty files
                                 continue;
