@@ -27,8 +27,8 @@
             <fileset dir="${artifacts.dir}" includes="api/*.jar"/>
         </path>
 
-        <path id="project-ext">
-            <fileset dir="${artifacts.dir}" includes="ext/*.jar"/>
+        <path id="project-shared">
+            <fileset dir="${artifacts.dir}" includes="shared/*.jar"/>
         </path>
 
     </target>
@@ -52,10 +52,10 @@
                 <attribute name="Main-Class" value="org.lucidj.examples.invoke.Invoke"/>
             </manifests>
             <classpaths>
-                <path refid="project-ext"/>
+                <path refid="project-shared"/>
             </classpaths>
             <addjar>
-                <zipgroupfileset dir="${artifacts.dir}" includes="ext/*.jar"/>
+                <zipgroupfileset dir="${artifacts.dir}" includes="shared/*.jar"/>
             </addjar>
         </build.classic.jar>
 

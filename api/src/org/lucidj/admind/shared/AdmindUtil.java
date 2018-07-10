@@ -14,7 +14,7 @@
  * the License.
  */
 
-package org.lucidj.ext.admind;
+package org.lucidj.admind.shared;
 
 import java.io.*;
 import java.lang.management.ManagementFactory;
@@ -25,6 +25,8 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -373,6 +375,23 @@ public class AdmindUtil
     //=================================================================================================================
     // ASYNCHRONOUS TASKS
     //=================================================================================================================
+
+    public static String encodeArgs (String[] args)
+    {
+        return ((args.length == 0)? "\f": String.join ("\n", args) + "\n");
+    }
+
+    public static String[] decodeArgs (InputStream in)
+        throws IOException
+    {
+        List<String> args = new ArrayList<> ();
+
+        try (BufferedReader r = new BufferedReader (new InputStreamReader (in)))
+        {
+            for (String line; (line = r.readLine()) != null && !line.equals("\f"); args.add (line));
+        }
+        return (args.toArray (new String [args.size ()]));
+    }
 
     public static String asyncInvoke (String task, String data, String... options)
     {

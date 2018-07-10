@@ -16,9 +16,9 @@
 
 package org.lucidj.admind;
 
+import org.lucidj.admind.shared.AdmindUtil;
 import org.lucidj.api.admind.Task;
 import org.lucidj.api.admind.TaskProvider;
-import org.lucidj.ext.admind.AdmindUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

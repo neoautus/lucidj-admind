@@ -16,7 +16,7 @@
 
 package org.lucidj.examples.invoke;
 
-import org.lucidj.ext.admind.AdmindUtil;
+import org.lucidj.admind.shared.AdmindUtil;
 
 public class Invoke
 {
