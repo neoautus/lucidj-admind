@@ -23,7 +23,8 @@ public interface TaskProvider
 {
     String NAME_FILTER = TaskProvider.class.getSimpleName() + ".nameFilter";
 
-    Task createTask (InputStream in, OutputStream out, OutputStream err, String name, String... options);
+    Task createTask (InputStream in, OutputStream out, OutputStream err, String name, String... options)
+        throws Exception;
 }
 
 // EOF

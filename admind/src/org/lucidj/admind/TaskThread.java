@@ -92,13 +92,25 @@ public class TaskThread extends Thread
             return (null);
         }
 
-        // We have all set up to create the serving task
-        Task task = provider.createTask (task_in, task_out, task_err,
-            getTaskName (identifier), getTaskOptions (identifier));
-        TaskThread new_task = new TaskThread (identifier, group, task,
-            temp_file, err_file, task_in, task_out, task_err);
-        new_task.setDaemon (true);
-        return (new_task);
+        try
+        {
+            // We have all set up to create the serving task
+            Task task = provider.createTask (task_in, task_out, task_err,
+                getTaskName (identifier), getTaskOptions (identifier));
+            TaskThread new_task = new TaskThread (identifier, group, task,
+                temp_file, err_file, task_in, task_out, task_err);
+            new_task.setDaemon (true);
+            return (new_task);
+        }
+        catch (Throwable t)
+        {
+            log.warn ("{} for {} throwed {}", provider.getClass ().getSimpleName (), identifier, t.toString ());
+            t.printStackTrace (new PrintStream (task_err));
+            closeQuietly (task_in);
+            closeQuietly (task_out);
+            closeQuietly (task_err);
+            return (null);
+        }
     }
 
     public static boolean validTaskIdentifier (String identifier)
