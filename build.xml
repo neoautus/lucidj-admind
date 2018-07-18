@@ -46,25 +46,25 @@
              which need these classes.
          -->
         <build.classic.jar src="api/src/org/lucidj/admind/shared"
-            name="lucidj-adminutil" version="1.0.0" outfileProperty="ext.jar"/>
+            name="lucidj-adminutil" version="1.1.0" outfileProperty="ext.jar"/>
         <artifact file="${ext.jar}" group="shared"/>
-        <publish file="${ext.jar}" org="org.lucidj.admind" name="org.lucidj.admind.adminutil" rev="1.0.0"/>
+        <publish file="${ext.jar}" org="org.lucidj.admind" name="org.lucidj.admind.adminutil" rev="1.1.0"/>
     </target>
 
     <target name="build-api" depends="init">
-        <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.0.0"
-                      exports="org.lucidj.api.admind;version=1.0.0,org.lucidj.admind.shared;version=1.0.0"
+        <build.module dir="api" symbolicName="org.lucidj.api.admind" version="1.1.0"
+                      exports="org.lucidj.api.admind;version=1.1.0,org.lucidj.admind.shared;version=1.1.0"
                       deploy="${deploy.flag}" ipojo="false" outfileProperty="api.jar">
             <classpath>
                 <path refid="project-libs"/>
             </classpath>
         </build.module>
         <artifact file="${api.jar}" group="api"/>
-        <publish file="${api.jar}" org="org.lucidj.admind" name="org.lucidj.api.admind" rev="1.0.0"/>
+        <publish file="${api.jar}" org="org.lucidj.admind" name="org.lucidj.api.admind" rev="1.1.0"/>
     </target>
 
     <target name="build-admind" depends="init">
-        <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.0.0"
+        <build.module dir="admind" symbolicName="org.lucidj.admind" version="1.1.0"
                       deploy="${deploy.flag}" ipojo="false" outfileProperty="core.jar">
             <classpath>
                 <path refid="admind/logging"/>
@@ -72,7 +72,7 @@
                 <path refid="project-api"/>
             </classpath>
         </build.module>
-        <publish file="${core.jar}" org="org.lucidj.admind" name="org.lucidj.admind.core" rev="1.0.0"/>
+        <publish file="${core.jar}" org="org.lucidj.admind" name="org.lucidj.admind.core" rev="1.1.0"/>
     </target>
 
     <target name="build-examples" depends="init">
