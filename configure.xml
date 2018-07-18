@@ -110,6 +110,7 @@
         <attribute name="name"/>
         <attribute name="rev"/>
         <attribute name="type" default="jar"/>
+        <attribute name="outfileProperty" default="_dist.jar"/>
         <sequential>
 
             <!-- The file downloaded from external repositories like Github -->
@@ -161,15 +162,13 @@
             <!-- TODO: DELETE THE TARGET.JAR AND TARGET-SNAPSHOT.JAR TO AVOID CONFLICT -->
 
             <!-- Now we have either the downloaded file or the snapshot available to copy from -->
-            <local name="_dest.file"/>
-            <property name="_dest.file" value="${libcache.dir}/@{group}/@{name}-@{rev}.@{type}"/>
-            <local name="_dest.dirname"/>
-            <dirname property="_dest.dirname" file="${_dest.file}"/>
-            <mkdir dir="${_dest.dirname}"/>
+            <echo taskname="getDependency" message="Source artifact: ${_source.file}"/>
             <local name="_dest.basename"/>
             <basename property="_dest.basename" file="${_source.file}"/>
-            <echo taskname="getDependency" message="Source artifact: ${_source.file}"/>
-            <copy file="${_source.file}" tofile="${_dest.dirname}/${_dest.basename}" taskname="getDependency" overwrite="true"/>
+            <local name="_dist.jar"/>
+            <property name="_dist.jar" value="${libcache.dir}/@{group}/${_dest.basename}"/>
+            <property name="@{outfileProperty}" value="${_dist.jar}"/>
+            <copy file="${_source.file}" tofile="${_dist.jar}" taskname="getDependency" overwrite="true"/>
 
         </sequential>
     </macrodef>
@@ -291,6 +290,11 @@
         description="Clear library caches and retrieve all external dependencies.">
         <delete dir="${cache.dir}/lib"/>
         <ant target="init" inheritall="false"/>
+    </target>
+
+    <target name="rebuild" depends="zero, configure">
+        <!-- Invoke default task for build.xml -->
+        <subant buildpath="${basedir}"/>
     </target>
 
     <!-- Wrap any jar more or less like wrap: protocol -->
